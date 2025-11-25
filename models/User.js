@@ -51,6 +51,10 @@ const userSchema = mongoose.Schema({
         type: Number,
         default: 100.5018
     },
+    locationLastUpdated: {
+        type: Date,
+        default: null
+    },
     favorites: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
