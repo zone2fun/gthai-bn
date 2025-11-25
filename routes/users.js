@@ -66,11 +66,18 @@ router.get('/nearby', protect, async (req, res) => {
             return res.status(400).json({ message: 'Location not set. Please enable location tracking.' });
         }
 
-        // Find all users with location data (excluding current user and blocked users)
+        // Find users who have blocked the current user
+        const usersWhoBlockedMe = await User.find({
+            blockedUsers: currentUser._id
+        }).select('_id');
+
+        const blockedMeIds = usersWhoBlockedMe.map(u => u._id);
+
+        // Find all users with location data (excluding current user, blocked users, and users who blocked me)
         const users = await User.find({
             _id: {
                 $ne: req.user._id,
-                $nin: currentUser.blockedUsers || []
+                $nin: [...currentUser.blockedUsers, ...blockedMeIds]
             },
             lat: { $exists: true, $ne: null },
             lng: { $exists: true, $ne: null }

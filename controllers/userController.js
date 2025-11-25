@@ -30,9 +30,22 @@ const getAllUsers = async (req, res) => {
 
         let query = {};
         if (currentUser) {
-            // Filter out blocked users and the current user
+            // Find users who have blocked the current user
+            const usersWhoBlockedMe = await User.find({
+                blockedUsers: currentUser._id
+            }).select('_id');
+
+            const blockedMeIds = usersWhoBlockedMe.map(u => u._id);
+
+            // Filter out:
+            // 1. Current user
+            // 2. Users I blocked
+            // 3. Users who blocked me
             query = {
-                _id: { $ne: currentUser._id, $nin: currentUser.blockedUsers }
+                _id: {
+                    $ne: currentUser._id,
+                    $nin: [...currentUser.blockedUsers, ...blockedMeIds]
+                }
             };
         }
 
@@ -84,7 +97,30 @@ const getAllUsers = async (req, res) => {
 // @access  Private
 const getFreshFaces = async (req, res) => {
     try {
-        const users = await User.find({})
+        let currentUser = null;
+        if (req.user) {
+            currentUser = await User.findById(req.user._id);
+        }
+
+        let query = {};
+        if (currentUser) {
+            // Find users who have blocked the current user
+            const usersWhoBlockedMe = await User.find({
+                blockedUsers: currentUser._id
+            }).select('_id');
+
+            const blockedMeIds = usersWhoBlockedMe.map(u => u._id);
+
+            // Filter out blocked users bidirectionally
+            query = {
+                _id: {
+                    $ne: currentUser._id,
+                    $nin: [...currentUser.blockedUsers, ...blockedMeIds]
+                }
+            };
+        }
+
+        const users = await User.find(query)
             .select('-password')
             .sort({ createdAt: -1 })
             .limit(20);

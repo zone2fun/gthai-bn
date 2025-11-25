@@ -10,12 +10,33 @@ const getPosts = async (req, res) => {
         const { hashtag } = req.query;
         let query = {};
 
+        // Get current user and their blocked relationships
+        const currentUser = await User.findById(req.user._id);
+
+        // Find users who have blocked the current user
+        const usersWhoBlockedMe = await User.find({
+            blockedUsers: currentUser._id
+        }).select('_id');
+
+        const blockedMeIds = usersWhoBlockedMe.map(u => u._id);
+
+        // Combine all blocked user IDs (users I blocked + users who blocked me)
+        const allBlockedUserIds = [...currentUser.blockedUsers, ...blockedMeIds];
+
         if (hashtag) {
             const tags = hashtag.split(',').map(tag => tag.trim()).filter(tag => tag);
             if (tags.length > 0) {
                 const regexConditions = tags.map(tag => ({ content: { $regex: tag, $options: 'i' } }));
-                query = { $or: regexConditions };
+                query = {
+                    $or: regexConditions,
+                    user: { $nin: allBlockedUserIds } // Exclude blocked users' posts
+                };
             }
+        } else {
+            // No hashtag filter, just exclude blocked users
+            query = {
+                user: { $nin: allBlockedUserIds }
+            };
         }
 
         const posts = await Post.find(query)
