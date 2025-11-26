@@ -163,9 +163,16 @@ const googleLogin = async (req, res) => {
                 username += Math.floor(Math.random() * 10000); // Ensure min length
             }
 
-            // Random location around Bangkok
-            const lat = 13.7563 + (Math.random() - 0.5) * 0.1;
-            const lng = 100.5018 + (Math.random() - 0.5) * 0.1;
+            // Use provided location or random location around Bangkok
+            let lat, lng;
+            if (req.body.lat && req.body.lng) {
+                lat = req.body.lat;
+                lng = req.body.lng;
+            } else {
+                // Random location around Bangkok as fallback
+                lat = 13.7563 + (Math.random() - 0.5) * 0.1;
+                lng = 100.5018 + (Math.random() - 0.5) * 0.1;
+            }
 
             user = await User.create({
                 username,
