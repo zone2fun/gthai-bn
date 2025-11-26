@@ -240,6 +240,29 @@ const addComment = async (req, res) => {
 
         const updatedPost = await Post.findById(req.params.id).populate('comments.user', 'name img');
 
+        // Create Notification if not commenting on own post
+        if (post.user.toString() !== req.user._id.toString()) {
+            const Notification = require('../models/Notification');
+
+            // Get the newly created comment (last one in the array)
+            const newComment = updatedPost.comments[updatedPost.comments.length - 1];
+
+            const notification = await Notification.create({
+                recipient: post.user,
+                sender: req.user._id,
+                type: 'comment_post',
+                post: post._id,
+                comment: newComment._id
+            });
+
+            // Emit socket event to recipient
+            const populatedNotification = await Notification.findById(notification._id)
+                .populate('sender', 'name img')
+                .populate('post', 'content image');
+
+            req.io.to(post.user.toString()).emit('new notification', populatedNotification);
+        }
+
         res.json(updatedPost.comments);
     } catch (error) {
         console.error(error);
