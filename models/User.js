@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
 
+function arrayLimit(val) {
+    return val.length <= 3;
+}
+
 const userSchema = mongoose.Schema({
     username: {
         type: String,
@@ -64,6 +68,15 @@ const userSchema = mongoose.Schema({
         ref: 'User'
     }],
     blockedUsers: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+    privateAlbum: {
+        type: [String],
+        default: [],
+        validate: [arrayLimit, 'Private album can only have 3 photos']
+    },
+    albumAccessGranted: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }]

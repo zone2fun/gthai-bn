@@ -95,6 +95,7 @@ const userRoutes = require('./routes/users');
 const chatRoutes = require('./routes/chat');
 const postRoutes = require('./routes/posts');
 const reportRoutes = require('./routes/reports');
+const albumAccessRoutes = require('./routes/albumAccess');
 
 // Use Routes
 app.use('/api/auth', authRoutes);
@@ -103,6 +104,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/reports', reportRoutes);
+app.use('/api/album-access', albumAccessRoutes);
 
 const PORT = process.env.PORT || 5000;
 

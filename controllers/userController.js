@@ -300,6 +300,28 @@ const updateUserProfile = async (req, res) => {
             // Update user gallery
             user.gallery = galleryUrls;
 
+            // Handle private album updates
+            let privateAlbumUrls = [];
+            if (req.body.existingPrivateAlbum) {
+                privateAlbumUrls = typeof req.body.existingPrivateAlbum === 'string'
+                    ? req.body.existingPrivateAlbum.split(',').filter(url => url.trim())
+                    : req.body.existingPrivateAlbum;
+            }
+
+            // Add new private album images (max 3 total)
+            if (req.files && req.files.privateAlbum) {
+                const newPrivateUrls = req.files.privateAlbum.map(file => file.path);
+                privateAlbumUrls = [...privateAlbumUrls, ...newPrivateUrls];
+
+                // Ensure max 3 photos
+                if (privateAlbumUrls.length > 3) {
+                    privateAlbumUrls = privateAlbumUrls.slice(0, 3);
+                }
+            }
+
+            // Update user private album
+            user.privateAlbum = privateAlbumUrls;
+
             const updatedUser = await user.save();
 
             res.json({
@@ -315,6 +337,7 @@ const updateUserProfile = async (req, res) => {
                 lookingFor: updatedUser.lookingFor,
                 bio: updatedUser.bio,
                 gallery: updatedUser.gallery,
+                privateAlbum: updatedUser.privateAlbum,
                 isPublic: updatedUser.isPublic,
                 token: req.headers.authorization.split(' ')[1] // Return same token
             });

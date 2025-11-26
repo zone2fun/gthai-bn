@@ -9,7 +9,8 @@ router.get('/fresh-faces', optionalProtect, getFreshFaces);
 router.put('/profile', protect, upload.fields([
     { name: 'img', maxCount: 1 },
     { name: 'cover', maxCount: 1 },
-    { name: 'gallery', maxCount: 5 }
+    { name: 'gallery', maxCount: 5 },
+    { name: 'privateAlbum', maxCount: 3 }
 ]), updateUserProfile);
 router.put('/password', protect, changePassword);
 router.delete('/profile', protect, deleteAccount);
