@@ -100,6 +100,35 @@ const likePost = async (req, res) => {
         } else {
             // Like
             post.likes.push(req.user._id);
+
+            // Create Notification if not liking own post
+            if (post.user.toString() !== req.user._id.toString()) {
+                const Notification = require('../models/Notification');
+
+                // Check if notification already exists for this post/user/type to avoid duplicates
+                const existingNotification = await Notification.findOne({
+                    recipient: post.user,
+                    sender: req.user._id,
+                    type: 'like_post',
+                    post: post._id
+                });
+
+                if (!existingNotification) {
+                    const notification = await Notification.create({
+                        recipient: post.user,
+                        sender: req.user._id,
+                        type: 'like_post',
+                        post: post._id
+                    });
+
+                    // Emit socket event to recipient
+                    const populatedNotification = await Notification.findById(notification._id)
+                        .populate('sender', 'name img')
+                        .populate('post', 'content image');
+
+                    req.io.to(post.user.toString()).emit('new notification', populatedNotification);
+                }
+            }
         }
 
         await post.save();
