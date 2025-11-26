@@ -128,6 +128,11 @@ const updateAlbumAccessRequest = async (req, res) => {
             await User.findByIdAndUpdate(req.user._id, {
                 $addToSet: { albumAccessGranted: request.requester }
             });
+        } else if (status === 'rejected') {
+            // If rejected (or revoked), remove requester from albumAccessGranted
+            await User.findByIdAndUpdate(req.user._id, {
+                $pull: { albumAccessGranted: request.requester }
+            });
         }
 
         const populatedRequest = await AlbumAccessRequest.findById(request._id)
@@ -154,7 +159,7 @@ const updateAlbumAccessRequest = async (req, res) => {
         req.io.to(req.user._id.toString()).emit('new message', populatedMessage);
 
         // Emit socket event to requester
-        req.io.to(request.requester.toString()).emit('album access response', populatedRequest);
+        req.io.to(request.requester._id.toString()).emit('album access response', populatedRequest);
 
         res.json(populatedRequest);
     } catch (error) {
