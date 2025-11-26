@@ -43,6 +43,10 @@ const userSchema = mongoose.Schema({
         type: Boolean,
         default: false
     },
+    isPublic: {
+        type: Boolean,
+        default: true
+    },
     lat: {
         type: Number,
         default: 13.7563 // Default to Bangkok

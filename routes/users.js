@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { upload } = require('../config/cloudinary');
-const { getAllUsers, getUserById, getFreshFaces, toggleFavorite, blockUser, unblockUser, getBlockedUsers, updateUserProfile } = require('../controllers/userController');
+const { getAllUsers, getUserById, getFreshFaces, toggleFavorite, blockUser, unblockUser, getBlockedUsers, updateUserProfile, changePassword, deleteAccount } = require('../controllers/userController');
 const { protect, optionalProtect } = require('../middleware/auth');
 
 router.get('/', optionalProtect, getAllUsers);
@@ -11,6 +11,8 @@ router.put('/profile', protect, upload.fields([
     { name: 'cover', maxCount: 1 },
     { name: 'gallery', maxCount: 5 }
 ]), updateUserProfile);
+router.put('/password', protect, changePassword);
+router.delete('/profile', protect, deleteAccount);
 router.get('/blocked', protect, getBlockedUsers);
 router.put('/location', protect, async (req, res) => {
     try {

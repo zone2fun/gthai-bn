@@ -237,6 +237,13 @@ const getBlockedUsers = async (req, res) => {
 // @desc    Update user profile
 // @route   PUT /api/users/profile
 // @access  Private
+const bcrypt = require('bcryptjs');
+
+// ... (existing imports and functions) ...
+
+// @desc    Update user profile
+// @route   PUT /api/users/profile
+// @access  Private
 const updateUserProfile = async (req, res) => {
     try {
         const user = await User.findById(req.user._id);
@@ -247,6 +254,10 @@ const updateUserProfile = async (req, res) => {
             user.height = req.body.height || user.height;
             user.weight = req.body.weight || user.weight;
             user.country = req.body.country || user.country;
+
+            if (req.body.isPublic !== undefined) {
+                user.isPublic = req.body.isPublic === 'true' || req.body.isPublic === true;
+            }
 
             if (req.body.lookingFor) {
                 // Handle lookingFor as array (it might come as string from form data)
@@ -302,8 +313,50 @@ const updateUserProfile = async (req, res) => {
                 lookingFor: updatedUser.lookingFor,
                 bio: updatedUser.bio,
                 gallery: updatedUser.gallery,
+                isPublic: updatedUser.isPublic,
                 token: req.headers.authorization.split(' ')[1] // Return same token
             });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Change user password
+// @route   PUT /api/users/password
+// @access  Private
+const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const user = await User.findById(req.user._id);
+
+        if (user && (await bcrypt.compare(currentPassword, user.password))) {
+            const salt = await bcrypt.genSalt(10);
+            user.password = await bcrypt.hash(newPassword, salt);
+            await user.save();
+            res.json({ message: 'Password updated successfully' });
+        } else {
+            res.status(401).json({ message: 'Invalid current password' });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Delete user account
+// @route   DELETE /api/users/profile
+// @access  Private
+const deleteAccount = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+
+        if (user) {
+            await User.deleteOne({ _id: user._id });
+            res.json({ message: 'User removed' });
         } else {
             res.status(404).json({ message: 'User not found' });
         }
@@ -321,5 +374,7 @@ module.exports = {
     blockUser,
     unblockUser,
     getBlockedUsers,
-    updateUserProfile
+    updateUserProfile,
+    changePassword,
+    deleteAccount
 };
