@@ -8,12 +8,20 @@ const reportSchema = mongoose.Schema({
     },
     post: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Post',
+        ref: 'Post'
+    },
+    reportedUser: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    reportType: {
+        type: String,
+        enum: ['post', 'user'],
         required: true
     },
     reason: {
         type: String,
-        enum: ['spam', 'อนาจาร', 'กล่าวร้ายผู้อื่น', 'แอบอ้าง', 'หลอกลวง'],
+        enum: ['spam', 'อนาจาร', 'กล่าวร้ายผู้อื่น', 'แอบอ้าง', 'หลอกลวง', 'โปรไฟล์ปลอม', 'การล่วงละเมิด'],
         required: true
     },
     additionalInfo: {

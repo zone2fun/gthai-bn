@@ -6,34 +6,66 @@ const Post = require('../models/Post');
 // @access  Private
 const createReport = async (req, res) => {
     try {
-        const { postId, reason, additionalInfo } = req.body;
+        const { postId, userId, reason, additionalInfo, reportType } = req.body;
 
-        // Check if post exists
-        const post = await Post.findById(postId);
-        if (!post) {
-            return res.status(404).json({ message: 'Post not found' });
+        if (!reportType || !['post', 'user'].includes(reportType)) {
+            return res.status(400).json({ message: 'Invalid report type' });
         }
 
-        // Check if user already reported this post
-        const existingReport = await Report.findOne({
+        let reportData = {
             reporter: req.user._id,
-            post: postId
-        });
-
-        if (existingReport) {
-            return res.status(400).json({ message: 'You have already reported this post' });
-        }
-
-        const report = await Report.create({
-            reporter: req.user._id,
-            post: postId,
+            reportType,
             reason,
             additionalInfo: additionalInfo || ''
-        });
+        };
+
+        if (reportType === 'post') {
+            // Check if post exists
+            const post = await Post.findById(postId);
+            if (!post) {
+                return res.status(404).json({ message: 'Post not found' });
+            }
+
+            // Check if user already reported this post
+            const existingReport = await Report.findOne({
+                reporter: req.user._id,
+                post: postId,
+                reportType: 'post'
+            });
+
+            if (existingReport) {
+                return res.status(400).json({ message: 'You have already reported this post' });
+            }
+
+            reportData.post = postId;
+        } else if (reportType === 'user') {
+            const User = require('../models/User');
+            // Check if user exists
+            const user = await User.findById(userId);
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            // Check if user already reported this user
+            const existingReport = await Report.findOne({
+                reporter: req.user._id,
+                reportedUser: userId,
+                reportType: 'user'
+            });
+
+            if (existingReport) {
+                return res.status(400).json({ message: 'You have already reported this user' });
+            }
+
+            reportData.reportedUser = userId;
+        }
+
+        const report = await Report.create(reportData);
 
         const populatedReport = await Report.findById(report._id)
             .populate('reporter', 'name img')
-            .populate('post', 'content image user');
+            .populate('post', 'content image user')
+            .populate('reportedUser', 'name img');
 
         res.status(201).json(populatedReport);
     } catch (error) {
