@@ -51,6 +51,30 @@ const getPosts = async (req, res) => {
     }
 };
 
+// @desc    Get single post by ID
+// @route   GET /api/posts/:id
+// @access  Private
+const getPostById = async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id)
+            .populate('user', 'name img isOnline')
+            .populate('likes', 'name img')
+            .populate('comments.user', 'name img');
+
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+
+        res.json(post);
+    } catch (error) {
+        console.error(error);
+        if (error.kind === 'ObjectId') {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 // @desc    Create a post
 // @route   POST /api/posts
 // @access  Private
@@ -264,6 +288,7 @@ const deleteComment = async (req, res) => {
 
 module.exports = {
     getPosts,
+    getPostById,
     createPost,
     likePost,
     deletePost,
