@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const { OAuth2Client } = require('google-auth-library');
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Generate JWT
 const generateToken = (id) => {
@@ -110,8 +112,89 @@ const getMe = async (req, res) => {
     res.status(200).json(req.user);
 };
 
+// @desc    Google Login
+// @route   POST /api/auth/google
+// @access  Public
+const googleLogin = async (req, res) => {
+    const { token } = req.body;
+
+    try {
+        // Verify access token and get user info using fetch
+        const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Google API Error: ${response.status} ${errorText}`);
+        }
+
+        const data = await response.json();
+        const { name, email, picture } = data;
+
+        // Check if user exists
+        let user = await User.findOne({ email });
+
+        if (user) {
+            // User exists, log them in
+            res.json({
+                _id: user.id,
+                name: user.name,
+                username: user.username,
+                img: user.img,
+                token: generateToken(user._id)
+            });
+        } else {
+            // User doesn't exist, create new user
+            // Generate random password
+            const password = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
+
+            // Generate unique username
+            let username = email.split('@')[0];
+            const checkUsername = await User.findOne({ username });
+            if (checkUsername) {
+                username += Math.floor(Math.random() * 1000);
+            }
+            if (username.length < 8) {
+                username += Math.floor(Math.random() * 10000); // Ensure min length
+            }
+
+            // Random location around Bangkok
+            const lat = 13.7563 + (Math.random() - 0.5) * 0.1;
+            const lng = 100.5018 + (Math.random() - 0.5) * 0.1;
+
+            user = await User.create({
+                username,
+                password: hashedPassword,
+                email,
+                name,
+                img: picture,
+                lat,
+                lng,
+                isOnline: true
+            });
+
+            res.status(201).json({
+                _id: user.id,
+                name: user.name,
+                username: user.username,
+                img: user.img,
+                token: generateToken(user._id)
+            });
+        }
+    } catch (error) {
+        console.error('Google Login Error:', error);
+        res.status(400).json({ message: 'Google Login Failed', error: error.message });
+    }
+};
+
 module.exports = {
     registerUser,
     loginUser,
     getMe,
+    googleLogin
 };

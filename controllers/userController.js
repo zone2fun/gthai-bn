@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const Post = require('../models/Post');
+const { cloudinary } = require('../config/cloudinary');
 
 // @desc    Get all users
 // @route   GET /api/users
@@ -355,8 +357,83 @@ const deleteAccount = async (req, res) => {
         const user = await User.findById(req.user._id);
 
         if (user) {
+            // Helper function to extract public ID from Cloudinary URL
+            const getPublicIdFromUrl = (url) => {
+                if (!url) return null;
+                try {
+                    // Example: https://res.cloudinary.com/demo/image/upload/v1570979139/folder/sample.jpg
+                    const parts = url.split('/');
+                    const filename = parts[parts.length - 1];
+                    const publicId = filename.split('.')[0];
+                    // If there's a folder, we might need to include it.
+                    // However, with multer-storage-cloudinary, the filename usually includes the folder if configured that way,
+                    // OR we need to parse it more carefully.
+                    // Let's assume standard Cloudinary URL structure where the public ID is after 'upload/v<version>/'
+
+                    // Better approach: split by 'upload/' and take the second part
+                    const splitUrl = url.split('upload/');
+                    if (splitUrl.length < 2) return null;
+
+                    const pathWithVersion = splitUrl[1];
+                    // Remove version (e.g., v1234567890/)
+                    const pathWithoutVersion = pathWithVersion.replace(/^v\d+\//, '');
+
+                    // Remove extension
+                    const publicIdWithFolder = pathWithoutVersion.substring(0, pathWithoutVersion.lastIndexOf('.'));
+
+                    return publicIdWithFolder;
+                } catch (err) {
+                    console.error('Error parsing public ID:', err);
+                    return null;
+                }
+            };
+
+            const publicIdsToDelete = [];
+
+            // 1. User Profile Images
+            if (user.img && !user.img.includes('user_avatar.png')) {
+                const pid = getPublicIdFromUrl(user.img);
+                if (pid) publicIdsToDelete.push(pid);
+            }
+            if (user.cover && !user.cover.includes('cover_default.png')) {
+                const pid = getPublicIdFromUrl(user.cover);
+                if (pid) publicIdsToDelete.push(pid);
+            }
+            if (user.gallery && user.gallery.length > 0) {
+                user.gallery.forEach(imgUrl => {
+                    const pid = getPublicIdFromUrl(imgUrl);
+                    if (pid) publicIdsToDelete.push(pid);
+                });
+            }
+
+            // 2. User Posts Images
+            const userPosts = await Post.find({ user: user._id });
+            userPosts.forEach(post => {
+                if (post.image) {
+                    const pid = getPublicIdFromUrl(post.image);
+                    if (pid) publicIdsToDelete.push(pid);
+                }
+            });
+
+            // 3. Delete from Cloudinary
+            if (publicIdsToDelete.length > 0) {
+                try {
+                    // Cloudinary supports deleting multiple resources
+                    await cloudinary.api.delete_resources(publicIdsToDelete);
+                    console.log('Deleted images from Cloudinary:', publicIdsToDelete);
+                } catch (cloudinaryErr) {
+                    console.error('Error deleting images from Cloudinary:', cloudinaryErr);
+                    // Continue with account deletion even if image deletion fails
+                }
+            }
+
+            // 4. Delete User Posts
+            await Post.deleteMany({ user: user._id });
+
+            // 5. Delete User
             await User.deleteOne({ _id: user._id });
-            res.json({ message: 'User removed' });
+
+            res.json({ message: 'User and associated data removed' });
         } else {
             res.status(404).json({ message: 'User not found' });
         }
