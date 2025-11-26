@@ -94,6 +94,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const chatRoutes = require('./routes/chat');
 const postRoutes = require('./routes/posts');
+const reportRoutes = require('./routes/reports');
 
 // Use Routes
 app.use('/api/auth', authRoutes);
@@ -101,6 +102,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/reports', reportRoutes);
 
 const PORT = process.env.PORT || 5000;
 
