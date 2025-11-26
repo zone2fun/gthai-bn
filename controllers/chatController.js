@@ -79,13 +79,24 @@ const getConversations = async (req, res) => {
     const seenUsers = new Set();
 
     messages.forEach(msg => {
+        // Skip if message doesn't have sender or recipient populated
+        if (!msg.sender || !msg.recipient) return;
+
         const otherUser = msg.sender._id.toString() === myId.toString() ? msg.recipient : msg.sender;
 
         if (!seenUsers.has(otherUser._id.toString())) {
             seenUsers.add(otherUser._id.toString());
             conversations.push({
                 user: otherUser,
-                lastMessage: msg,
+                lastMessage: {
+                    _id: msg._id,
+                    sender: msg.sender,
+                    recipient: msg.recipient,
+                    text: msg.text || '',
+                    image: msg.image || null,
+                    createdAt: msg.createdAt,
+                    read: msg.read
+                },
                 unreadCount: unreadCounts[otherUser._id.toString()] || 0
             });
         }
