@@ -261,11 +261,15 @@ const updateUserProfile = async (req, res) => {
                 user.isPublic = req.body.isPublic === 'true' || req.body.isPublic === true;
             }
 
-            if (req.body.lookingFor) {
+            if (req.body.lookingFor !== undefined) {
                 // Handle lookingFor as array (it might come as string from form data)
-                user.lookingFor = Array.isArray(req.body.lookingFor)
-                    ? req.body.lookingFor
-                    : req.body.lookingFor.split(',').map(item => item.trim());
+                if (req.body.lookingFor === '') {
+                    user.lookingFor = [];
+                } else {
+                    user.lookingFor = Array.isArray(req.body.lookingFor)
+                        ? req.body.lookingFor
+                        : req.body.lookingFor.split(',').map(item => item.trim());
+                }
             }
 
             if (req.body.bio !== undefined) {
