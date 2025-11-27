@@ -13,10 +13,21 @@ cloudinary.config({
 
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: {
-        folder: 'gthai-mobile',
-        allowed_formats: ['jpg', 'png', 'jpeg', 'gif'],
-        transformation: [{ width: 500, height: 500, crop: 'limit' }]
+    params: async (req, file) => {
+        const baseParams = {
+            folder: 'gthai-mobile',
+            allowed_formats: ['jpg', 'png', 'jpeg', 'gif'],
+            transformation: [{ width: 500, height: 500, crop: 'limit' }]
+        };
+
+        // Apply moderation to all uploads EXCEPT private album
+        // NOTE: This requires the "AWS Rekognition AI Moderation" add-on to be enabled in your Cloudinary Dashboard.
+        // Go to Add-ons > AWS Rekognition AI Moderation > Free Plan (or higher) to enable it.
+        if (file.fieldname !== 'privateAlbum') {
+            baseParams.moderation = 'aws_rekognition_moderation';
+        }
+
+        return baseParams;
     }
 });
 

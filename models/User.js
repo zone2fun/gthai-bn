@@ -79,7 +79,11 @@ const userSchema = mongoose.Schema({
     albumAccessGranted: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
-    }]
+    }],
+    isFake: {
+        type: Boolean,
+        default: false
+    }
 }, {
     timestamps: true
 });
