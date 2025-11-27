@@ -2,14 +2,25 @@ const nodemailer = require('nodemailer');
 
 // Create transporter
 const createTransporter = () => {
-    // For development, you can use Gmail or any SMTP service
-    // For production, use a service like SendGrid, AWS SES, etc.
+    // Check if SendGrid API key is available (for production/Render)
+    if (process.env.SENDGRID_API_KEY) {
+        return nodemailer.createTransport({
+            host: 'smtp.sendgrid.net',
+            port: 587,
+            secure: false,
+            auth: {
+                user: 'apikey',
+                pass: process.env.SENDGRID_API_KEY
+            }
+        });
+    }
 
+    // Fall back to Gmail (for local development)
     return nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: process.env.EMAIL_USER, // Your email
-            pass: process.env.EMAIL_PASSWORD // Your email password or app password
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASSWORD
         }
     });
 };
@@ -21,7 +32,7 @@ const sendPasswordResetEmail = async (email, resetToken, userName) => {
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
     const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: process.env.EMAIL_USER || 'noreply@gthai.com',
         to: email,
         subject: 'Password Reset Request - GThai Mobile',
         html: `
