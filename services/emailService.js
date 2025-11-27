@@ -4,6 +4,7 @@ const nodemailer = require('nodemailer');
 const createTransporter = () => {
     // Check if SendGrid API key is available (for production/Render)
     if (process.env.SENDGRID_API_KEY) {
+        console.log('📧 Using SendGrid for email service');
         return nodemailer.createTransport({
             host: 'smtp.sendgrid.net',
             port: 587,
@@ -16,6 +17,7 @@ const createTransporter = () => {
     }
 
     // Fall back to Gmail (for local development)
+    console.log('📧 Using Gmail for email service');
     return nodemailer.createTransport({
         service: 'gmail',
         auth: {
@@ -58,9 +60,10 @@ const sendPasswordResetEmail = async (email, resetToken, userName) => {
 
     try {
         await transporter.sendMail(mailOptions);
+        console.log('✅ Password reset email sent successfully to:', email);
         return { success: true };
     } catch (error) {
-        console.error('Error sending email:', error);
+        console.error('❌ Error sending email:', error);
         return { success: false, error: error.message };
     }
 };
