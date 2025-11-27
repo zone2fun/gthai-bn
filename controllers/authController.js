@@ -89,8 +89,13 @@ const registerUser = async (req, res) => {
 const loginUser = async (req, res) => {
     const { username, password } = req.body;
 
-    // Check for user email
-    const user = await User.findOne({ username });
+    // Check for user by username OR email
+    const user = await User.findOne({
+        $or: [
+            { username: username },
+            { email: username } // Allow login with email in username field
+        ]
+    });
 
     if (user && (await bcrypt.compare(password, user.password))) {
         res.json({
