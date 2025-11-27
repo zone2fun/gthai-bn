@@ -23,9 +23,10 @@ const storage = new CloudinaryStorage({
         // Apply moderation to all uploads EXCEPT private album
         // NOTE: This requires the "AWS Rekognition AI Moderation" add-on to be enabled in your Cloudinary Dashboard.
         // Go to Add-ons > AWS Rekognition AI Moderation > Free Plan (or higher) to enable it.
-        if (file.fieldname !== 'privateAlbum') {
-            baseParams.moderation = 'aws_rekognition_moderation';
-        }
+        // TEMPORARILY DISABLED - Enable this after activating the Cloudinary add-on
+        // if (file.fieldname !== 'privateAlbum') {
+        //     baseParams.moderation = 'aws_rekognition_moderation';
+        // }
 
         return baseParams;
     }
