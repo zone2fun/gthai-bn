@@ -91,6 +91,14 @@ const userSchema = mongoose.Schema({
     isFake: {
         type: Boolean,
         default: false
+    },
+    registrationIp: {
+        type: String,
+        default: ''
+    },
+    lastLoginIp: {
+        type: String,
+        default: ''
     }
 }, {
     timestamps: true

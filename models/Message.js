@@ -33,6 +33,10 @@ const messageSchema = mongoose.Schema({
     relatedModel: {
         type: String,
         enum: ['AlbumAccessRequest']
+    },
+    ipAddress: {
+        type: String,
+        default: ''
     }
 }, {
     timestamps: true

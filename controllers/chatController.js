@@ -38,7 +38,8 @@ const sendMessage = async (req, res) => {
         sender: senderId,
         recipient: recipientId,
         text,
-        image: imageUrl
+        image: imageUrl,
+        ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress
     });
 
     const fullMessage = await Message.findOne({ _id: message._id })

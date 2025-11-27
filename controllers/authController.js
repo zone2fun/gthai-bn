@@ -56,6 +56,9 @@ const registerUser = async (req, res) => {
         lng = 100.5018 + (Math.random() - 0.5) * 0.1;
     }
 
+    // Get IP address
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
     // Create user
     const user = await User.create({
         username,
@@ -67,7 +70,9 @@ const registerUser = async (req, res) => {
         weight,
         country,
         lat,
-        lng
+        lng,
+        registrationIp: ip,
+        lastLoginIp: ip
     });
 
     if (user) {
@@ -98,6 +103,10 @@ const loginUser = async (req, res) => {
     });
 
     if (user && (await bcrypt.compare(password, user.password))) {
+        // Update last login IP
+        user.lastLoginIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        await user.save();
+
         res.json({
             _id: user.id,
             name: user.name,
@@ -142,8 +151,13 @@ const googleLogin = async (req, res) => {
         // Check if user exists
         let user = await User.findOne({ email });
 
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
         if (user) {
             // User exists, log them in
+            user.lastLoginIp = ip;
+            await user.save();
+
             res.json({
                 _id: user.id,
                 name: user.name,
@@ -187,7 +201,9 @@ const googleLogin = async (req, res) => {
                 img: picture,
                 lat,
                 lng,
-                isOnline: true
+                isOnline: true,
+                registrationIp: ip,
+                lastLoginIp: ip
             });
 
             res.status(201).json({
