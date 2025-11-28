@@ -279,13 +279,13 @@ const updateUserProfile = async (req, res) => {
                 user.bio = req.body.bio;
             }
 
-            // Handle img and cover uploads
+            // Handle img and cover uploads - save to pending fields for admin approval
             if (req.files) {
                 if (req.files.img) {
-                    user.img = req.files.img[0].path;
+                    user.pendingImg = req.files.img[0].path;
                 }
                 if (req.files.cover) {
-                    user.cover = req.files.cover[0].path;
+                    user.pendingCover = req.files.cover[0].path;
                 }
             }
 
@@ -298,13 +298,13 @@ const updateUserProfile = async (req, res) => {
                     : req.body.existingGallery;
             }
 
-            // Add new gallery images
+            // Add new gallery images to pending gallery for admin approval
             if (req.files && req.files.gallery) {
                 const newGalleryUrls = req.files.gallery.map(file => file.path);
-                galleryUrls = [...galleryUrls, ...newGalleryUrls];
+                user.pendingGallery = [...(user.pendingGallery || []), ...newGalleryUrls];
             }
 
-            // Update user gallery
+            // Keep existing approved gallery
             user.gallery = galleryUrls;
 
             // Handle private album updates

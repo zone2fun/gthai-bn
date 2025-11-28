@@ -111,6 +111,18 @@ const userSchema = mongoose.Schema({
     isVerified: {
         type: Boolean,
         default: false
+    },
+    pendingImg: {
+        type: String,
+        default: null
+    },
+    pendingCover: {
+        type: String,
+        default: null
+    },
+    pendingGallery: {
+        type: [String],
+        default: []
     }
 }, {
     timestamps: true

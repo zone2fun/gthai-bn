@@ -116,6 +116,6 @@ router.get('/nearby', protect, async (req, res) => {
 router.put('/:id/favorite', protect, toggleFavorite);
 router.put('/:id/block', protect, blockUser);
 router.put('/:id/unblock', protect, unblockUser);
-router.get('/:id', protect, getUserById);
+router.get('/:id', optionalProtect, getUserById);
 
 module.exports = router;

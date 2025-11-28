@@ -27,6 +27,7 @@ io.on('connection', (socket) => {
     socket.on('setup', async (userData) => {
         socket.join(userData._id);
         socket.userId = userData._id; // Store userId in socket session
+        console.log(`User ${userData._id} joined their room`);
         socket.emit('connected');
 
         // Set user online
@@ -97,6 +98,7 @@ const postRoutes = require('./routes/posts');
 const reportRoutes = require('./routes/reports');
 const albumAccessRoutes = require('./routes/albumAccess');
 const adminRoutes = require('./routes/admin');
+const photoApprovalRoutes = require('./routes/photoApprovalRoutes');
 
 // Use Routes
 app.use('/api/auth', authRoutes);
@@ -107,6 +109,7 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/reports', reportRoutes);
 app.use('/api/album-access', albumAccessRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/photos', photoApprovalRoutes);
 
 const PORT = process.env.PORT || 5000;
 
