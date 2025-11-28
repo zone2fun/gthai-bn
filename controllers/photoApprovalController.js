@@ -115,9 +115,12 @@ const approvePhoto = async (req, res) => {
 
         // Send real-time notification to user via socket.io
         if (req.io) {
+            // Emit to specific user for notification
             req.io.to(userId.toString()).emit('new notification', notification);
-            // Also emit photo approved event for profile refresh
-            req.io.to(userId.toString()).emit('photo approved', {
+
+            // Broadcast photo approved event so everyone sees the new avatar immediately
+            req.io.emit('photo approved', {
+                userId: userId,
                 photoType: photoTypeLabel,
                 photoUrl: photoUrl,
                 message: `Your ${photoTypeLabel} has been approved!`
