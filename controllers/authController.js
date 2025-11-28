@@ -103,6 +103,11 @@ const loginUser = async (req, res) => {
     });
 
     if (user && (await bcrypt.compare(password, user.password))) {
+        // Check if user is banned
+        if (user.isBanned) {
+            return res.status(403).json({ message: 'user คุณมีปัญหาในการ login โปรดติดต่อ admin' });
+        }
+
         // Update last login IP
         user.lastLoginIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         await user.save();
@@ -154,6 +159,11 @@ const googleLogin = async (req, res) => {
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
         if (user) {
+            // Check if user is banned
+            if (user.isBanned) {
+                return res.status(403).json({ message: 'user คุณมีปัญหาในการ login โปรดติดต่อ admin' });
+            }
+
             // User exists, log them in
             user.lastLoginIp = ip;
             await user.save();

@@ -13,8 +13,11 @@ const notificationSchema = mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['like_post', 'comment_post'],
+        enum: ['like_post', 'comment_post', 'admin_notification'],
         required: true
+    },
+    message: {
+        type: String
     },
     post: {
         type: mongoose.Schema.Types.ObjectId,

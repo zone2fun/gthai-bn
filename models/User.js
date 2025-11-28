@@ -99,6 +99,18 @@ const userSchema = mongoose.Schema({
     lastLoginIp: {
         type: String,
         default: ''
+    },
+    isBanned: {
+        type: Boolean,
+        default: false
+    },
+    warningCount: {
+        type: Number,
+        default: 0
+    },
+    isVerified: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true

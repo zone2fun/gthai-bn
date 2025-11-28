@@ -43,11 +43,13 @@ const getAllUsers = async (req, res) => {
             // 1. Current user
             // 2. Users I blocked
             // 3. Users who blocked me
+            // 4. Banned users
             query = {
                 _id: {
                     $ne: currentUser._id,
                     $nin: [...currentUser.blockedUsers, ...blockedMeIds]
-                }
+                },
+                isBanned: { $ne: true }
             };
         }
 
@@ -113,12 +115,13 @@ const getFreshFaces = async (req, res) => {
 
             const blockedMeIds = usersWhoBlockedMe.map(u => u._id);
 
-            // Filter out blocked users bidirectionally
+            // Filter out blocked users bidirectionally and banned users
             query = {
                 _id: {
                     $ne: currentUser._id,
                     $nin: [...currentUser.blockedUsers, ...blockedMeIds]
-                }
+                },
+                isBanned: { $ne: true }
             };
         }
 
