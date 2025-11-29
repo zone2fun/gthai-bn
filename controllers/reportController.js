@@ -2,9 +2,6 @@ const Report = require('../models/Report');
 const Post = require('../models/Post');
 const Notification = require('../models/Notification');
 
-// @desc    Create a report
-// @route   POST /api/reports
-// @access  Private
 const createReport = async (req, res) => {
     try {
         const { postId, userId, reason, additionalInfo, reportType } = req.body;
@@ -39,6 +36,24 @@ const createReport = async (req, res) => {
             }
 
             reportData.post = postId;
+
+            // Send notification to post owner
+            const notification = await Notification.create({
+                recipient: post.user,
+                sender: req.user._id,
+                type: 'report',
+                message: 'Your post has been reported and is under review by our team.'
+            });
+
+            // Populate notification for socket emit
+            const populatedNotification = await Notification.findById(notification._id)
+                .populate('sender', 'name img')
+                .populate('recipient', 'name img');
+
+            // Emit realtime notification via Socket.IO
+            if (req.io) {
+                req.io.to(post.user.toString()).emit('new notification', populatedNotification);
+            }
         } else if (reportType === 'user') {
             const User = require('../models/User');
             // Check if user exists
@@ -59,6 +74,24 @@ const createReport = async (req, res) => {
             }
 
             reportData.reportedUser = userId;
+
+            // Send notification to reported user
+            const notification = await Notification.create({
+                recipient: userId,
+                sender: req.user._id,
+                type: 'report',
+                message: 'Your profile has been reported and is under review by our team.'
+            });
+
+            // Populate notification for socket emit
+            const populatedNotification = await Notification.findById(notification._id)
+                .populate('sender', 'name img')
+                .populate('recipient', 'name img');
+
+            // Emit realtime notification via Socket.IO
+            if (req.io) {
+                req.io.to(userId.toString()).emit('new notification', populatedNotification);
+            }
         }
 
         const report = await Report.create(reportData);
