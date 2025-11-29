@@ -26,4 +26,11 @@ router.put('/users/:id', protectAdmin, requireEditor, updateUser);
 router.put('/users/:id/ban', protectAdmin, requireEditor, toggleBanUser);
 router.delete('/users/:id', protectAdmin, requireAdmin, deleteUser); // Only admin can delete
 
+const { getPendingPosts, approvePost, deletePostAdmin } = require('../controllers/postController');
+
+// Protected routes - Post Management (Admin & Editor)
+router.get('/posts/pending', protectAdmin, requireEditor, getPendingPosts);
+router.put('/posts/:id/approve', protectAdmin, requireEditor, approvePost);
+router.delete('/posts/:id', protectAdmin, requireAdmin, deletePostAdmin);
+
 module.exports = router;

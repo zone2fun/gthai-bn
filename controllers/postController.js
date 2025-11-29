@@ -7,11 +7,22 @@ const { cloudinary } = require('../config/cloudinary');
 // @access  Private
 const getPosts = async (req, res) => {
     try {
-        const { hashtag } = req.query;
+        const { hashtag, unapproved } = req.query;
         let query = {};
 
         // Get current user and their blocked relationships
         const currentUser = await User.findById(req.user._id);
+
+        // Check if requesting unapproved posts (admin only)
+        if (unapproved === 'true') {
+            // Return all posts without filtering by approval status
+            const posts = await Post.find({})
+                .sort({ createdAt: -1 })
+                .populate('user', 'name img isOnline')
+                .populate('likes', 'name img')
+                .populate('comments.user', 'name img');
+            return res.json(posts);
+        }
 
         // Find users who have blocked the current user
         const usersWhoBlockedMe = await User.find({
@@ -23,20 +34,25 @@ const getPosts = async (req, res) => {
         // Combine all blocked user IDs (users I blocked + users who blocked me)
         const allBlockedUserIds = [...currentUser.blockedUsers, ...blockedMeIds];
 
+        // Base conditions: exclude blocked users
+        const baseConditions = {
+            user: { $nin: allBlockedUserIds }
+        };
+
         if (hashtag) {
             const tags = hashtag.split(',').map(tag => tag.trim()).filter(tag => tag);
             if (tags.length > 0) {
                 const regexConditions = tags.map(tag => ({ content: { $regex: tag, $options: 'i' } }));
                 query = {
-                    $or: regexConditions,
-                    user: { $nin: allBlockedUserIds } // Exclude blocked users' posts
+                    $and: [
+                        { $or: regexConditions }, // Hashtag filter
+                        baseConditions // Apply base conditions
+                    ]
                 };
             }
         } else {
-            // No hashtag filter, just exclude blocked users
-            query = {
-                user: { $nin: allBlockedUserIds }
-            };
+            // No hashtag filter, just apply base conditions
+            query = baseConditions;
         }
 
         const posts = await Post.find(query)
@@ -68,9 +84,6 @@ const getPostById = async (req, res) => {
         res.json(post);
     } catch (error) {
         console.error(error);
-        if (error.kind === 'ObjectId') {
-            return res.status(404).json({ message: 'Post not found' });
-        }
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -91,10 +104,14 @@ const createPost = async (req, res) => {
             return res.status(400).json({ message: 'Post must have content or image' });
         }
 
+        // Posts with images need admin approval
+        const isApproved = imageUrl ? false : true;
+
         const newPost = await Post.create({
             user: req.user._id,
             content,
-            image: imageUrl
+            image: imageUrl,
+            isApproved: isApproved
         });
 
         const fullPost = await Post.findById(newPost._id).populate('user', 'name img isOnline');
@@ -106,7 +123,7 @@ const createPost = async (req, res) => {
     }
 };
 
-// @desc    Like/Unlike a post
+// @desc    Like a post
 // @route   PUT /api/posts/:id/like
 // @access  Private
 const likePost = async (req, res) => {
@@ -117,10 +134,12 @@ const likePost = async (req, res) => {
             return res.status(404).json({ message: 'Post not found' });
         }
 
-        // Check if post has already been liked
+        // Check if the post has already been liked
         if (post.likes.includes(req.user._id)) {
             // Unlike
-            post.likes = post.likes.filter(id => id.toString() !== req.user._id.toString());
+            post.likes = post.likes.filter(
+                like => like.toString() !== req.user._id.toString()
+            );
         } else {
             // Like
             post.likes.push(req.user._id);
@@ -129,7 +148,7 @@ const likePost = async (req, res) => {
             if (post.user.toString() !== req.user._id.toString()) {
                 const Notification = require('../models/Notification');
 
-                // Check if notification already exists for this post/user/type to avoid duplicates
+                // Check if notification already exists
                 const existingNotification = await Notification.findOne({
                     recipient: post.user,
                     sender: req.user._id,
@@ -309,6 +328,135 @@ const deleteComment = async (req, res) => {
     }
 };
 
+// @desc    Approve a post (Admin only)
+// @route   PUT /api/posts/:id/approve
+// @access  Private/Admin
+const approvePost = async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+
+        post.isApproved = true;
+        await post.save();
+
+        const fullPost = await Post.findById(post._id)
+            .populate('user', 'name img isOnline')
+            .populate('likes', 'name img')
+            .populate('comments.user', 'name img');
+
+        // Create Notification
+        const Notification = require('../models/Notification');
+        const notification = await Notification.create({
+            recipient: post.user,
+            type: 'post_approved',
+            post: post._id,
+            message: 'Your post has been approved and is now visible.'
+        });
+
+        // Emit socket events
+        if (req.io) {
+            // Notify user about approval
+            req.io.to(post.user.toString()).emit('post_approved', fullPost);
+
+            // Send notification
+            const populatedNotification = await Notification.findById(notification._id)
+                .populate('post', 'content image');
+            req.io.to(post.user.toString()).emit('new notification', populatedNotification);
+        }
+
+        res.json(fullPost);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Get pending posts (Admin only)
+// @route   GET /api/admin/posts/pending
+// @access  Private/Admin
+const getPendingPosts = async (req, res) => {
+    try {
+        const posts = await Post.find({ isApproved: false, image: { $ne: null } })
+            .sort({ createdAt: -1 })
+            .populate('user', 'name img isOnline')
+            .populate('likes', 'name img')
+            .populate('comments.user', 'name img');
+        res.json(posts);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Delete a post (Admin only)
+// @route   DELETE /api/admin/posts/:id
+// @access  Private/Admin
+const deletePostAdmin = async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+
+        const userId = post.user;
+        const postContent = post.content ? post.content.substring(0, 50) + (post.content.length > 50 ? '...' : '') : 'Image post';
+
+        // Delete image from cloudinary
+        if (post.image) {
+            try {
+                const urlParts = post.image.split('/');
+                const fileWithExt = urlParts[urlParts.length - 1];
+                const publicId = `gthai-mobile/${fileWithExt.split('.')[0]}`;
+                await cloudinary.uploader.destroy(publicId);
+            } catch (err) {
+                console.error('Error deleting image from Cloudinary', err);
+            }
+        }
+
+        // Delete gallery images from cloudinary
+        if (post.gallery && post.gallery.length > 0) {
+            for (const imgUrl of post.gallery) {
+                try {
+                    const urlParts = imgUrl.split('/');
+                    const fileWithExt = urlParts[urlParts.length - 1];
+                    const publicId = `gthai-mobile/${fileWithExt.split('.')[0]}`;
+                    await cloudinary.uploader.destroy(publicId);
+                } catch (err) {
+                    console.error('Error deleting gallery image from Cloudinary', err);
+                }
+            }
+        }
+
+        await post.deleteOne();
+
+        // Create Notification for rejection
+        const Notification = require('../models/Notification');
+        const notification = await Notification.create({
+            recipient: userId,
+            type: 'post_rejected',
+            message: `Your post "${postContent}" was rejected by admin.`
+        });
+
+        // Emit socket events
+        if (req.io) {
+            // Notify user about rejection
+            req.io.to(userId.toString()).emit('post_rejected', { postId: req.params.id });
+
+            // Send notification
+            req.io.to(userId.toString()).emit('new notification', notification);
+        }
+
+        res.json({ message: 'Post removed' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 module.exports = {
     getPosts,
     getPostById,
@@ -316,5 +464,8 @@ module.exports = {
     likePost,
     deletePost,
     addComment,
-    deleteComment
+    deleteComment,
+    approvePost,
+    getPendingPosts,
+    deletePostAdmin
 };

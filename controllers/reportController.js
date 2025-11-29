@@ -28,7 +28,8 @@ const createReport = async (req, res) => {
             const existingReport = await Report.findOne({
                 reporter: req.user._id,
                 post: postId,
-                reportType: 'post'
+                reportType: 'post',
+                status: 'pending'
             });
 
             if (existingReport) {
@@ -66,7 +67,8 @@ const createReport = async (req, res) => {
             const existingReport = await Report.findOne({
                 reporter: req.user._id,
                 reportedUser: userId,
-                reportType: 'user'
+                reportType: 'user',
+                status: 'pending'
             });
 
             if (existingReport) {
@@ -212,6 +214,13 @@ const updateReportStatus = async (req, res) => {
 
                 // Emit realtime notification via Socket.IO
                 req.io.to(reportedUser._id.toString()).emit('new notification', populatedNotification);
+
+                // If user is banned, emit specific event to force logout
+                if (reportedUser.isBanned) {
+                    req.io.to(reportedUser._id.toString()).emit('account_banned', {
+                        message: 'Your account has been banned.'
+                    });
+                }
 
                 await reportedUser.save();
             }

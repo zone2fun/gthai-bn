@@ -14,6 +14,10 @@ const postSchema = mongoose.Schema({
         type: String,
         required: false
     },
+    isApproved: {
+        type: Boolean,
+        default: true  // Default true for posts without images
+    },
     likes: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
