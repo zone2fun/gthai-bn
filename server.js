@@ -99,6 +99,7 @@ const reportRoutes = require('./routes/reports');
 const albumAccessRoutes = require('./routes/albumAccess');
 const adminRoutes = require('./routes/admin');
 const photoApprovalRoutes = require('./routes/photoApprovalRoutes');
+const announcementRoutes = require('./routes/announcements');
 
 // Use Routes
 app.use('/api/auth', authRoutes);
@@ -110,6 +111,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/album-access', albumAccessRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/photos', photoApprovalRoutes);
+app.use('/api/announcements', announcementRoutes);
 
 const PORT = process.env.PORT || 5000;
 

@@ -31,12 +31,21 @@ const getPosts = async (req, res) => {
 
         const blockedMeIds = usersWhoBlockedMe.map(u => u._id);
 
-        // Combine all blocked user IDs (users I blocked + users who blocked me)
-        const allBlockedUserIds = [...currentUser.blockedUsers, ...blockedMeIds];
+        // Find banned users
+        const bannedUsers = await User.find({ isBanned: true }).select('_id');
+        const bannedUserIds = bannedUsers.map(u => u._id);
 
-        // Base conditions: exclude blocked users
+        // Combine all excluded user IDs (users I blocked + users who blocked me + banned users)
+        // Convert all to string for easier comparison later
+        const allExcludedUserIds = [
+            ...currentUser.blockedUsers.map(id => id.toString()),
+            ...blockedMeIds.map(id => id.toString()),
+            ...bannedUserIds.map(id => id.toString())
+        ];
+
+        // Base conditions: exclude blocked/banned users
         const baseConditions = {
-            user: { $nin: allBlockedUserIds }
+            user: { $nin: allExcludedUserIds }
         };
 
         if (hashtag) {
@@ -58,9 +67,50 @@ const getPosts = async (req, res) => {
         const posts = await Post.find(query)
             .sort({ createdAt: -1 })
             .populate('user', 'name img isOnline')
-            .populate('likes', 'name img')
-            .populate('comments.user', 'name img');
-        res.json(posts);
+            .populate('likes', 'name img isBanned')
+            .populate('comments.user', 'name img isBanned');
+
+        // Filter out comments and likes from excluded users (blocked/banned)
+        const filteredPosts = posts.map(post => {
+            // Convert to object to avoid modifying the actual document if we were to save it (though we aren't)
+            // and to allow easier manipulation
+            const postObj = post.toObject();
+
+            if (postObj.comments) {
+                postObj.comments = postObj.comments.filter(comment => {
+                    // Check if comment user exists (might be deleted)
+                    if (!comment.user) return false;
+
+                    // Check if user is banned
+                    if (comment.user.isBanned) return false;
+
+                    // Check if user is in excluded list (blocked/banned)
+                    if (allExcludedUserIds.includes(comment.user._id.toString())) return false;
+
+                    return true;
+                });
+            }
+
+            // Filter out likes from excluded users (blocked/banned)
+            if (postObj.likes) {
+                postObj.likes = postObj.likes.filter(like => {
+                    // Check if like user exists
+                    if (!like) return false;
+
+                    // Check if user is banned
+                    if (like.isBanned) return false;
+
+                    // Check if user is in excluded list
+                    if (allExcludedUserIds.includes(like._id.toString())) return false;
+
+                    return true;
+                });
+            }
+
+            return postObj;
+        });
+
+        res.json(filteredPosts);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
@@ -73,15 +123,35 @@ const getPosts = async (req, res) => {
 const getPostById = async (req, res) => {
     try {
         const post = await Post.findById(req.params.id)
-            .populate('user', 'name img isOnline')
-            .populate('likes', 'name img')
-            .populate('comments.user', 'name img');
+            .populate('user', 'name img isOnline isBanned')
+            .populate('likes', 'name img isBanned')
+            .populate('comments.user', 'name img isBanned');
 
         if (!post) {
             return res.status(404).json({ message: 'Post not found' });
         }
 
-        res.json(post);
+        // Check if post author is banned
+        if (post.user && post.user.isBanned) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+
+        // Filter comments from banned users
+        const postObj = post.toObject();
+        if (postObj.comments) {
+            postObj.comments = postObj.comments.filter(comment =>
+                comment.user && !comment.user.isBanned
+            );
+        }
+
+        // Filter likes from banned users
+        if (postObj.likes) {
+            postObj.likes = postObj.likes.filter(like =>
+                like && !like.isBanned
+            );
+        }
+
+        res.json(postObj);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
@@ -177,9 +247,12 @@ const likePost = async (req, res) => {
         await post.save();
 
         // Populate likes with user data before returning
-        await post.populate('likes', 'name img');
+        await post.populate('likes', 'name img isBanned');
 
-        res.json(post.likes);
+        // Filter likes from banned users
+        const filteredLikes = post.likes.filter(like => like && !like.isBanned);
+
+        res.json(filteredLikes);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
@@ -257,7 +330,7 @@ const addComment = async (req, res) => {
 
         await post.save();
 
-        const updatedPost = await Post.findById(req.params.id).populate('comments.user', 'name img');
+        const updatedPost = await Post.findById(req.params.id).populate('comments.user', 'name img isBanned');
 
         // Create Notification if not commenting on own post
         if (post.user.toString() !== req.user._id.toString()) {
@@ -282,7 +355,12 @@ const addComment = async (req, res) => {
             req.io.to(post.user.toString()).emit('new notification', populatedNotification);
         }
 
-        res.json(updatedPost.comments);
+        // Filter comments from banned users
+        const comments = updatedPost.comments.filter(comment =>
+            comment.user && !comment.user.isBanned
+        );
+
+        res.json(comments);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
@@ -319,9 +397,14 @@ const deleteComment = async (req, res) => {
 
         await post.save();
 
-        const updatedPost = await Post.findById(req.params.id).populate('comments.user', 'name img');
+        const updatedPost = await Post.findById(req.params.id).populate('comments.user', 'name img isBanned');
 
-        res.json(updatedPost.comments);
+        // Filter comments from banned users
+        const comments = updatedPost.comments.filter(comment =>
+            comment.user && !comment.user.isBanned
+        );
+
+        res.json(comments);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
@@ -416,7 +499,6 @@ const deletePostAdmin = async (req, res) => {
                 console.error('Error deleting image from Cloudinary', err);
             }
         }
-
         // Delete gallery images from cloudinary
         if (post.gallery && post.gallery.length > 0) {
             for (const imgUrl of post.gallery) {

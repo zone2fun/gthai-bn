@@ -81,6 +81,7 @@ const registerUser = async (req, res) => {
             name: user.name,
             username: user.username,
             img: user.img,
+            isVerified: user.isVerified,
             token: generateToken(user._id)
         });
     } else {
@@ -117,6 +118,7 @@ const loginUser = async (req, res) => {
             name: user.name,
             username: user.username,
             img: user.img,
+            isVerified: user.isVerified,
             token: generateToken(user._id)
         });
     } else {
@@ -173,6 +175,7 @@ const googleLogin = async (req, res) => {
                 name: user.name,
                 username: user.username,
                 img: user.img,
+                isVerified: user.isVerified,
                 token: generateToken(user._id)
             });
         } else {
@@ -221,6 +224,7 @@ const googleLogin = async (req, res) => {
                 name: user.name,
                 username: user.username,
                 img: user.img,
+                isVerified: user.isVerified,
                 token: generateToken(user._id)
             });
         }
