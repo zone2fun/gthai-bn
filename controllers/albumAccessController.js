@@ -58,7 +58,7 @@ const requestAlbumAccess = async (req, res) => {
             type: 'request_album_access',
             relatedId: request._id,
             relatedModel: 'AlbumAccessRequest',
-            text: 'ขอสิทธิ์เข้าถึงอัลบั้มส่วนตัว'
+            text: 'ACCESS_REQUEST'
         });
 
         // Emit socket event for new message
@@ -147,7 +147,7 @@ const updateAlbumAccessRequest = async (req, res) => {
             type: 'album_access_response',
             relatedId: request._id,
             relatedModel: 'AlbumAccessRequest',
-            text: status === 'approved' ? 'อนุมัติคำขอเข้าถึงอัลบั้มแล้ว' : 'ปฏิเสธคำขอเข้าถึงอัลบั้ม'
+            text: status === 'approved' ? 'ACCESS_APPROVED' : 'ACCESS_REJECTED'
         });
 
         // Emit socket event for new message

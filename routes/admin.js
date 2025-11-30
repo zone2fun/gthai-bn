@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { loginAdmin, getAdminProfile, createAdmin, getPendingCounts } = require('../controllers/adminController');
+const { loginAdmin, getAdminProfile, createAdmin, getPendingCounts, getPendingVerifications, approveVerification, denyVerification } = require('../controllers/adminController');
 const {
     getAllUsers,
     getUserById,
@@ -9,7 +9,18 @@ const {
     deleteUser,
     getUserStats
 } = require('../controllers/adminUserController');
+const { getPendingPosts, approvePost, deletePostAdmin } = require('../controllers/postController');
+const multer = require('multer');
+const {
+    getSettings,
+    updateSetting,
+    backupDatabase,
+    restoreDatabase
+} = require('../controllers/adminSettingsController');
 const { protectAdmin, requireAdmin, requireEditor } = require('../middleware/adminAuth');
+
+// Multer config for file upload
+const upload = multer({ dest: 'uploads/' });
 
 // Public routes
 router.post('/login', loginAdmin);
@@ -27,22 +38,20 @@ router.put('/users/:id', protectAdmin, requireEditor, updateUser);
 router.put('/users/:id/ban', protectAdmin, requireEditor, toggleBanUser);
 router.delete('/users/:id', protectAdmin, requireAdmin, deleteUser); // Only admin can delete
 
-const { getPendingPosts, approvePost, deletePostAdmin } = require('../controllers/postController');
-
 // Protected routes - Post Management (Admin & Editor)
 router.get('/posts/pending', protectAdmin, requireEditor, getPendingPosts);
 router.put('/posts/:id/approve', protectAdmin, requireEditor, approvePost);
 router.delete('/posts/:id', protectAdmin, requireAdmin, deletePostAdmin);
 
-const {
-    getPendingVerifications,
-    approveVerification,
-    denyVerification
-} = require('../controllers/adminController');
-
 // Protected routes - Verification Requests (Admin & Editor)
 router.get('/verifications/pending', protectAdmin, requireEditor, getPendingVerifications);
 router.put('/verifications/:id/approve', protectAdmin, requireEditor, approveVerification);
 router.put('/verifications/:id/deny', protectAdmin, requireEditor, denyVerification);
+
+// Protected routes - System Settings (Admin Only)
+router.get('/settings', protectAdmin, requireAdmin, getSettings);
+router.put('/settings', protectAdmin, requireAdmin, updateSetting);
+router.get('/backup', protectAdmin, requireAdmin, backupDatabase);
+router.post('/restore', protectAdmin, requireAdmin, upload.single('backup'), restoreDatabase);
 
 module.exports = router;

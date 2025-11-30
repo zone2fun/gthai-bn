@@ -100,18 +100,23 @@ const albumAccessRoutes = require('./routes/albumAccess');
 const adminRoutes = require('./routes/admin');
 const photoApprovalRoutes = require('./routes/photoApprovalRoutes');
 const announcementRoutes = require('./routes/announcements');
+const { checkMaintenanceMode } = require('./middleware/maintenanceMiddleware');
 
 // Use Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/posts', postRoutes);
-app.use('/api/notifications', require('./routes/notifications'));
-app.use('/api/reports', reportRoutes);
-app.use('/api/album-access', albumAccessRoutes);
+// Note: Admin routes and settings/public are NOT protected by maintenance mode
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/photos', photoApprovalRoutes);
-app.use('/api/announcements', announcementRoutes);
+app.use('/api/settings', require('./routes/settings'));
+
+// Apply maintenance mode check to user-facing routes
+app.use('/api/auth', checkMaintenanceMode, authRoutes);
+app.use('/api/users', checkMaintenanceMode, userRoutes);
+app.use('/api/chat', checkMaintenanceMode, chatRoutes);
+app.use('/api/posts', checkMaintenanceMode, postRoutes);
+app.use('/api/notifications', checkMaintenanceMode, require('./routes/notifications'));
+app.use('/api/reports', checkMaintenanceMode, reportRoutes);
+app.use('/api/album-access', checkMaintenanceMode, albumAccessRoutes);
+app.use('/api/announcements', checkMaintenanceMode, announcementRoutes);
 
 const PORT = process.env.PORT || 5000;
 
