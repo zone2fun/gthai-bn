@@ -125,7 +125,7 @@ const getReports = async (req, res) => {
         const reports = await Report.find(query)
             .sort({ createdAt: -1 })
             .populate('reporter', 'name img')
-            .populate('reportedUser', 'name img username email bio age country lookingFor createdAt gallery')
+            .populate('reportedUser', 'name img username email bio age country lookingFor createdAt gallery warningCount')
             .populate({
                 path: 'post',
                 populate: {

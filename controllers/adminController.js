@@ -117,8 +117,145 @@ const createAdmin = async (req, res) => {
     }
 };
 
+// @desc    Get pending counts for admin sidebar
+// @route   GET /api/admin/pending-counts
+// @access  Private (Admin/Editor)
+const getPendingCounts = async (req, res) => {
+    try {
+        const Report = require('../models/Report');
+        const User = require('../models/User');
+        const Post = require('../models/Post');
+
+        const pendingReports = await Report.countDocuments({ status: 'pending' });
+
+        const pendingPhotos = await User.countDocuments({
+            $or: [
+                { pendingImg: { $ne: null } },
+                { pendingCover: { $ne: null } },
+                { 'pendingGallery.0': { $exists: true } }
+            ]
+        });
+
+        const pendingPosts = await Post.countDocuments({ isApproved: false });
+
+        const pendingVerifications = await User.countDocuments({ verificationStatus: 'pending' });
+
+        res.json({
+            reports: pendingReports,
+            photos: pendingPhotos,
+            posts: pendingPosts,
+            verifications: pendingVerifications
+        });
+    } catch (error) {
+        console.error('Get pending counts error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Get pending verification requests
+// @route   GET /api/admin/verifications/pending
+// @access  Private (Admin/Editor)
+const getPendingVerifications = async (req, res) => {
+    try {
+        const User = require('../models/User');
+        const users = await User.find({ verificationStatus: 'pending' })
+            .select('name username verificationImage verificationDate createdAt')
+            .sort({ verificationDate: 1 });
+
+        res.json(users);
+    } catch (error) {
+        console.error('Get pending verifications error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Approve verification request
+// @route   PUT /api/admin/verifications/:id/approve
+// @access  Private (Admin/Editor)
+const approveVerification = async (req, res) => {
+    try {
+        const User = require('../models/User');
+        const Notification = require('../models/Notification');
+        const user = await User.findById(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        user.isVerified = true;
+        user.verificationStatus = 'verified';
+
+        await user.save();
+
+        // Create notification
+        await Notification.create({
+            recipient: user._id,
+            type: 'verification_approved',
+            message: 'Congratulations! Your account has been verified.'
+        });
+
+        // Emit socket event
+        const io = req.app.get('io');
+        if (io) {
+            io.to(user._id.toString()).emit('notification', {
+                type: 'verification_approved',
+                message: 'Congratulations! Your account has been verified.'
+            });
+        }
+
+        res.json({ message: 'User verified successfully' });
+    } catch (error) {
+        console.error('Approve verification error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Deny verification request
+// @route   PUT /api/admin/verifications/:id/deny
+// @access  Private (Admin/Editor)
+const denyVerification = async (req, res) => {
+    try {
+        const User = require('../models/User');
+        const Notification = require('../models/Notification');
+        const user = await User.findById(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        user.verificationStatus = 'rejected';
+
+        await user.save();
+
+        // Create notification
+        await Notification.create({
+            recipient: user._id,
+            type: 'verification_denied',
+            message: 'Your verification request has been denied. Please try again with a clearer photo.'
+        });
+
+        // Emit socket event
+        const io = req.app.get('io');
+        if (io) {
+            io.to(user._id.toString()).emit('notification', {
+                type: 'verification_denied',
+                message: 'Your verification request has been denied. Please try again with a clearer photo.'
+            });
+        }
+
+        res.json({ message: 'Verification request denied' });
+    } catch (error) {
+        console.error('Deny verification error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 module.exports = {
     loginAdmin,
     getAdminProfile,
-    createAdmin
+    createAdmin,
+    getPendingCounts,
+    getPendingVerifications,
+    approveVerification,
+    denyVerification
 };

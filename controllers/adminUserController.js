@@ -5,10 +5,15 @@ const User = require('../models/User');
 // @access  Private (Admin/Editor)
 const getAllUsers = async (req, res) => {
     try {
-        const { page = 1, limit = 10, search = '', status = 'all', verified = 'all' } = req.query;
+        const { page = 1, limit = 10, search = '', status = 'all', verified = 'all', hideFake = 'false' } = req.query;
 
         // Build query
         let query = {};
+
+        // Filter fake users
+        if (hideFake === 'true') {
+            query.isFake = { $ne: true };
+        }
 
         // Search by name, username, or email
         if (search) {
@@ -23,6 +28,8 @@ const getAllUsers = async (req, res) => {
         if (status !== 'all') {
             if (status === 'banned') {
                 query.isBanned = true;
+            } else if (status === 'online') {
+                query.isOnline = true;
             } else if (status === 'active') {
                 // Active users are those who are explicitly not banned OR where isBanned field doesn't exist/is false
                 query.$or = [
@@ -178,13 +185,15 @@ const getUserStats = async (req, res) => {
         const bannedUsers = await User.countDocuments({ isBanned: true });
         const verifiedUsers = await User.countDocuments({ isVerified: true });
         const onlineUsers = await User.countDocuments({ isOnline: true });
+        const fakeUsers = await User.countDocuments({ isFake: true });
 
         res.json({
             totalUsers,
             activeUsers,
             bannedUsers,
             verifiedUsers,
-            onlineUsers
+            onlineUsers,
+            fakeUsers
         });
     } catch (error) {
         console.error('Get user stats error:', error);

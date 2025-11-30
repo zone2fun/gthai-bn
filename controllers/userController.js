@@ -473,6 +473,49 @@ const deleteAccount = async (req, res) => {
     }
 };
 
+// @desc    Submit verification request
+// @route   POST /api/users/verification-request
+// @access  Private
+const submitVerificationRequest = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Check if already verified
+        if (user.isVerified) {
+            return res.status(400).json({ message: 'User is already verified' });
+        }
+
+        // Check if there's a pending request
+        if (user.verificationStatus === 'pending') {
+            return res.status(400).json({ message: 'Verification request already pending' });
+        }
+
+        // Check if image was uploaded
+        if (!req.file) {
+            return res.status(400).json({ message: 'Verification image is required' });
+        }
+
+        // Update user with verification request
+        user.verificationImage = req.file.path;
+        user.verificationStatus = 'pending';
+        user.verificationDate = new Date();
+
+        await user.save();
+
+        res.json({
+            message: 'Verification request submitted successfully',
+            verificationStatus: user.verificationStatus
+        });
+    } catch (error) {
+        console.error('Submit verification error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 module.exports = {
     getAllUsers,
     getUserById,
@@ -483,5 +526,6 @@ module.exports = {
     getBlockedUsers,
     updateUserProfile,
     changePassword,
-    deleteAccount
+    deleteAccount,
+    submitVerificationRequest
 };

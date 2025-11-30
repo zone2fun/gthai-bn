@@ -14,6 +14,7 @@ router.put('/profile', protect, upload.fields([
 ]), updateUserProfile);
 router.put('/password', protect, changePassword);
 router.delete('/profile', protect, deleteAccount);
+router.post('/verification-request', protect, upload.single('verificationImage'), require('../controllers/userController').submitVerificationRequest);
 router.get('/blocked', protect, getBlockedUsers);
 router.put('/location', protect, async (req, res) => {
     try {

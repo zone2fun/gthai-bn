@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { loginAdmin, getAdminProfile, createAdmin } = require('../controllers/adminController');
+const { loginAdmin, getAdminProfile, createAdmin, getPendingCounts } = require('../controllers/adminController');
 const {
     getAllUsers,
     getUserById,
@@ -16,6 +16,7 @@ router.post('/login', loginAdmin);
 
 // Protected routes - Admin Profile
 router.get('/me', protectAdmin, getAdminProfile);
+router.get('/pending-counts', protectAdmin, requireEditor, getPendingCounts);
 router.post('/create', protectAdmin, requireAdmin, createAdmin);
 
 // Protected routes - User Management (Admin & Editor)
@@ -32,5 +33,16 @@ const { getPendingPosts, approvePost, deletePostAdmin } = require('../controller
 router.get('/posts/pending', protectAdmin, requireEditor, getPendingPosts);
 router.put('/posts/:id/approve', protectAdmin, requireEditor, approvePost);
 router.delete('/posts/:id', protectAdmin, requireAdmin, deletePostAdmin);
+
+const {
+    getPendingVerifications,
+    approveVerification,
+    denyVerification
+} = require('../controllers/adminController');
+
+// Protected routes - Verification Requests (Admin & Editor)
+router.get('/verifications/pending', protectAdmin, requireEditor, getPendingVerifications);
+router.put('/verifications/:id/approve', protectAdmin, requireEditor, approveVerification);
+router.put('/verifications/:id/deny', protectAdmin, requireEditor, denyVerification);
 
 module.exports = router;

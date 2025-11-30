@@ -123,6 +123,19 @@ const userSchema = mongoose.Schema({
     pendingGallery: {
         type: [String],
         default: []
+    },
+    verificationImage: {
+        type: String,
+        default: null
+    },
+    verificationStatus: {
+        type: String,
+        enum: ['none', 'pending', 'verified', 'rejected'],
+        default: 'none'
+    },
+    verificationDate: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true
