@@ -13,7 +13,7 @@ const getMessages = async (req, res) => {
             { sender: myId, recipient: userId },
             { sender: userId, recipient: myId }
         ]
-    }).sort({ createdAt: 1 });
+    }).sort({ createdAt: 1 }).populate('relatedId');
 
     res.json(messages);
 };
