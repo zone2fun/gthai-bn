@@ -125,7 +125,7 @@ const getReports = async (req, res) => {
         const reports = await Report.find(query)
             .sort({ createdAt: -1 })
             .populate('reporter', 'name img')
-            .populate('reportedUser', 'name img username email bio age country lookingFor createdAt gallery warningCount')
+            .populate('reportedUser', 'name img username email bio age country lookingFor createdAt gallery warningCount isVerified')
             .populate({
                 path: 'post',
                 populate: {
@@ -231,7 +231,7 @@ const updateReportStatus = async (req, res) => {
 
         const populatedReport = await Report.findById(report._id)
             .populate('reporter', 'name img')
-            .populate('reportedUser', 'name img username email bio age country lookingFor createdAt gallery warningCount')
+            .populate('reportedUser', 'name img username email bio age country lookingFor createdAt gallery warningCount isVerified')
             .populate({
                 path: 'post',
                 populate: {
