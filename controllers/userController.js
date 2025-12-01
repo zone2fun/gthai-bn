@@ -30,7 +30,10 @@ const getAllUsers = async (req, res) => {
             currentUser = await User.findById(req.user._id);
         }
 
-        let query = {};
+        let query = {
+            isBanned: { $ne: true }
+        };
+
         if (currentUser) {
             // Find users who have blocked the current user
             const usersWhoBlockedMe = await User.find({
@@ -43,13 +46,10 @@ const getAllUsers = async (req, res) => {
             // 1. Current user
             // 2. Users I blocked
             // 3. Users who blocked me
-            // 4. Banned users
-            query = {
-                _id: {
-                    $ne: currentUser._id,
-                    $nin: [...currentUser.blockedUsers, ...blockedMeIds]
-                },
-                isBanned: { $ne: true }
+            // 4. Banned users (already in query)
+            query._id = {
+                $ne: currentUser._id,
+                $nin: [...currentUser.blockedUsers, ...blockedMeIds]
             };
         }
 
@@ -147,7 +147,7 @@ const getUserById = async (req, res) => {
 
         const user = await User.findById(req.params.id).select('-password');
 
-        if (user) {
+        if (user && !user.isBanned) {
             res.json(user);
         } else {
             res.status(404).json({ message: 'User not found' });
