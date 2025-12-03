@@ -87,6 +87,9 @@ app.use((req, res, next) => {
 app.use(cors());
 app.use(express.json());
 
+// Serve static files (for fake user images)
+app.use(express.static('public'));
+
 app.get('/', (req, res) => {
     res.send('API is running...');
 });
