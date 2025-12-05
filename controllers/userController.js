@@ -231,7 +231,7 @@ const unblockUser = async (req, res) => {
 // @access  Private
 const getBlockedUsers = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).populate('blockedUsers', 'name username img');
+        const user = await User.findById(req.user._id).populate('blockedUsers', 'name username img isOnline isVerified');
         res.json(user.blockedUsers);
     } catch (error) {
         console.error(error);
@@ -279,6 +279,12 @@ const updateUserProfile = async (req, res) => {
                 user.bio = req.body.bio;
             }
 
+            // Handle location update
+            if (req.body.lat !== undefined && req.body.lng !== undefined) {
+                user.lat = req.body.lat;
+                user.lng = req.body.lng;
+            }
+
             // Handle img and cover uploads - save to pending fields for admin approval
             if (req.files) {
                 if (req.files.img) {
@@ -289,13 +295,27 @@ const updateUserProfile = async (req, res) => {
                 }
             }
 
+            // Handle direct URL updates (e.g. from mobile app direct upload)
+            if (req.body.img && !req.files?.img) {
+                user.pendingImg = req.body.img;
+            }
+            if (req.body.cover && !req.files?.cover) {
+                user.pendingCover = req.body.cover;
+            }
+
             // Handle gallery updates
+            console.log('Gallery update - existingGallery:', req.body.existingGallery);
+            console.log('Gallery update - files.gallery:', req.files?.gallery?.length || 0);
+
             // Start with existing gallery URLs (if provided)
             let galleryUrls = [];
             if (req.body.existingGallery) {
                 galleryUrls = typeof req.body.existingGallery === 'string'
                     ? req.body.existingGallery.split(',').filter(url => url.trim())
                     : req.body.existingGallery;
+            } else {
+                // If no existingGallery sent, keep current gallery
+                galleryUrls = user.gallery || [];
             }
 
             // Add new gallery images to pending gallery for admin approval
@@ -304,32 +324,105 @@ const updateUserProfile = async (req, res) => {
                 user.pendingGallery = [...(user.pendingGallery || []), ...newGalleryUrls];
             }
 
+            // Handle direct URL updates for Gallery (new images)
+            if (req.body.newGallery) {
+                const newGalleryUrls = Array.isArray(req.body.newGallery)
+                    ? req.body.newGallery
+                    : [req.body.newGallery];
+                user.pendingGallery = [...(user.pendingGallery || []), ...newGalleryUrls];
+            }
+
             // Keep existing approved gallery
             user.gallery = galleryUrls;
+            console.log('Gallery update - final gallery:', user.gallery);
 
             // Handle private album updates
+            console.log('Private album update - existingPrivateAlbum:', req.body.existingPrivateAlbum);
+            console.log('Private album update - files.privateAlbum:', req.files?.privateAlbum?.length || 0);
+
             let privateAlbumUrls = [];
             if (req.body.existingPrivateAlbum) {
                 privateAlbumUrls = typeof req.body.existingPrivateAlbum === 'string'
                     ? req.body.existingPrivateAlbum.split(',').filter(url => url.trim())
                     : req.body.existingPrivateAlbum;
+            } else if (req.body.privateAlbum && typeof req.body.privateAlbum === 'string') {
+                // Fallback if client sends 'privateAlbum' as the list of existing images (string)
+                privateAlbumUrls = req.body.privateAlbum.split(',').filter(url => url.trim());
+            } else {
+                // If no existing album data sent, keep current private album
+                privateAlbumUrls = user.privateAlbum || [];
             }
 
             // Add new private album images (max 3 total)
             if (req.files && req.files.privateAlbum) {
                 const newPrivateUrls = req.files.privateAlbum.map(file => file.path);
                 privateAlbumUrls = [...privateAlbumUrls, ...newPrivateUrls];
+            }
 
-                // Ensure max 3 photos
-                if (privateAlbumUrls.length > 3) {
-                    privateAlbumUrls = privateAlbumUrls.slice(0, 3);
-                }
+            // Handle direct URL updates for Private Album (new images)
+            if (req.body.newPrivateAlbum) {
+                const newPrivateUrls = Array.isArray(req.body.newPrivateAlbum)
+                    ? req.body.newPrivateAlbum
+                    : [req.body.newPrivateAlbum];
+                privateAlbumUrls = [...privateAlbumUrls, ...newPrivateUrls];
+            }
+
+            // Ensure max 3 photos for private album
+            if (privateAlbumUrls.length > 3) {
+                privateAlbumUrls = privateAlbumUrls.slice(0, 3);
             }
 
             // Update user private album
             user.privateAlbum = privateAlbumUrls;
+            console.log('Private album update - final privateAlbum:', user.privateAlbum);
 
-            const updatedUser = await user.save();
+            // Save with retry mechanism for version conflicts
+            let retries = 3;
+            let updatedUser;
+            while (retries > 0) {
+                try {
+                    updatedUser = await user.save();
+                    break; // Success, exit loop
+                } catch (error) {
+                    if (error.name === 'VersionError' && retries > 1) {
+                        retries--;
+                        // Reload the user and reapply changes
+                        const freshUser = await User.findById(req.user._id);
+                        freshUser.name = req.body.name || freshUser.name;
+                        freshUser.age = req.body.age || freshUser.age;
+                        freshUser.height = req.body.height || freshUser.height;
+                        freshUser.weight = req.body.weight || freshUser.weight;
+                        freshUser.country = req.body.country || freshUser.country;
+                        if (req.body.isPublic !== undefined) {
+                            freshUser.isPublic = req.body.isPublic === 'true' || req.body.isPublic === true;
+                        }
+                        if (req.body.lookingFor !== undefined) {
+                            if (req.body.lookingFor === '') {
+                                freshUser.lookingFor = [];
+                            } else {
+                                freshUser.lookingFor = Array.isArray(req.body.lookingFor)
+                                    ? req.body.lookingFor
+                                    : req.body.lookingFor.split(',').map(item => item.trim());
+                            }
+                        }
+                        if (req.body.bio !== undefined) {
+                            freshUser.bio = req.body.bio;
+                        }
+                        if (req.body.lat !== undefined && req.body.lng !== undefined) {
+                            freshUser.lat = req.body.lat;
+                            freshUser.lng = req.body.lng;
+                        }
+                        freshUser.gallery = user.gallery;
+                        freshUser.privateAlbum = privateAlbumUrls;
+                        if (user.pendingImg) freshUser.pendingImg = user.pendingImg;
+                        if (user.pendingCover) freshUser.pendingCover = user.pendingCover;
+                        if (user.pendingGallery) freshUser.pendingGallery = user.pendingGallery;
+                        user = freshUser;
+                    } else {
+                        throw error; // Re-throw if not a version error or no retries left
+                    }
+                }
+            }
 
             res.json({
                 _id: updatedUser._id,
@@ -515,6 +608,9 @@ const submitVerificationRequest = async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 };
+
+
+
 
 module.exports = {
     getAllUsers,

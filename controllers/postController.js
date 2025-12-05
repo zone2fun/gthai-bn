@@ -18,9 +18,9 @@ const getPosts = async (req, res) => {
             // Return all posts without filtering by approval status
             const posts = await Post.find({})
                 .sort({ createdAt: -1 })
-                .populate('user', 'name img isOnline')
-                .populate('likes', 'name img')
-                .populate('comments.user', 'name img');
+                .populate('user', 'name img isOnline isVerified')
+                .populate('likes', 'name img isVerified')
+                .populate('comments.user', 'name img isVerified');
             return res.json(posts);
         }
 
@@ -43,9 +43,10 @@ const getPosts = async (req, res) => {
             ...bannedUserIds.map(id => id.toString())
         ];
 
-        // Base conditions: exclude blocked/banned users
+        // Base conditions: exclude blocked/banned users AND unapproved posts
         const baseConditions = {
-            user: { $nin: allExcludedUserIds }
+            user: { $nin: allExcludedUserIds },
+            isApproved: true  // Only show approved posts in regular feed
         };
 
         if (hashtag) {
@@ -66,9 +67,9 @@ const getPosts = async (req, res) => {
 
         const posts = await Post.find(query)
             .sort({ createdAt: -1 })
-            .populate('user', 'name img isOnline')
-            .populate('likes', 'name img isBanned')
-            .populate('comments.user', 'name img isBanned');
+            .populate('user', 'name img isOnline isVerified')
+            .populate('likes', 'name img isBanned isVerified')
+            .populate('comments.user', 'name img isBanned isVerified');
 
         // Filter out comments and likes from excluded users (blocked/banned)
         const filteredPosts = posts.map(post => {
@@ -123,9 +124,9 @@ const getPosts = async (req, res) => {
 const getPostById = async (req, res) => {
     try {
         const post = await Post.findById(req.params.id)
-            .populate('user', 'name img isOnline isBanned')
-            .populate('likes', 'name img isBanned')
-            .populate('comments.user', 'name img isBanned');
+            .populate('user', 'name img isOnline isBanned isVerified')
+            .populate('likes', 'name img isBanned isVerified')
+            .populate('comments.user', 'name img isBanned isVerified');
 
         if (!post) {
             return res.status(404).json({ message: 'Post not found' });
@@ -184,7 +185,12 @@ const createPost = async (req, res) => {
             isApproved: isApproved
         });
 
-        const fullPost = await Post.findById(newPost._id).populate('user', 'name img isOnline');
+        const fullPost = await Post.findById(newPost._id).populate('user', 'name img isOnline isVerified');
+
+        // Only emit socket event if post is approved (no image or auto-approved)
+        if (isApproved && req.io) {
+            req.io.emit('new post', fullPost);
+        }
 
         res.status(201).json(fullPost);
     } catch (error) {
@@ -247,7 +253,7 @@ const likePost = async (req, res) => {
         await post.save();
 
         // Populate likes with user data before returning
-        await post.populate('likes', 'name img isBanned');
+        await post.populate('likes', 'name img isBanned isVerified');
 
         // Filter likes from banned users
         const filteredLikes = post.likes.filter(like => like && !like.isBanned);
@@ -330,7 +336,7 @@ const addComment = async (req, res) => {
 
         await post.save();
 
-        const updatedPost = await Post.findById(req.params.id).populate('comments.user', 'name img isBanned');
+        const updatedPost = await Post.findById(req.params.id).populate('comments.user', 'name img isBanned isVerified');
 
         // Create Notification if not commenting on own post
         if (post.user.toString() !== req.user._id.toString()) {
@@ -397,7 +403,7 @@ const deleteComment = async (req, res) => {
 
         await post.save();
 
-        const updatedPost = await Post.findById(req.params.id).populate('comments.user', 'name img isBanned');
+        const updatedPost = await Post.findById(req.params.id).populate('comments.user', 'name img isBanned isVerified');
 
         // Filter comments from banned users
         const comments = updatedPost.comments.filter(comment =>
@@ -426,9 +432,9 @@ const approvePost = async (req, res) => {
         await post.save();
 
         const fullPost = await Post.findById(post._id)
-            .populate('user', 'name img isOnline')
-            .populate('likes', 'name img')
-            .populate('comments.user', 'name img');
+            .populate('user', 'name img isOnline isVerified')
+            .populate('likes', 'name img isVerified')
+            .populate('comments.user', 'name img isVerified');
 
         // Create Notification
         const Notification = require('../models/Notification');
@@ -441,10 +447,10 @@ const approvePost = async (req, res) => {
 
         // Emit socket events
         if (req.io) {
-            // Notify user about approval
-            req.io.to(post.user.toString()).emit('post_approved', fullPost);
+            // Broadcast approved post to ALL users so it appears in their feed
+            req.io.emit('post_approved', fullPost);
 
-            // Send notification
+            // Send notification to post owner
             const populatedNotification = await Notification.findById(notification._id)
                 .populate('post', 'content image');
             req.io.to(post.user.toString()).emit('new notification', populatedNotification);
@@ -464,9 +470,9 @@ const getPendingPosts = async (req, res) => {
     try {
         const posts = await Post.find({ isApproved: false, image: { $ne: null } })
             .sort({ createdAt: -1 })
-            .populate('user', 'name img isOnline')
-            .populate('likes', 'name img')
-            .populate('comments.user', 'name img');
+            .populate('user', 'name img isOnline isVerified')
+            .populate('likes', 'name img isVerified')
+            .populate('comments.user', 'name img isVerified');
         res.json(posts);
     } catch (error) {
         console.error(error);
@@ -525,10 +531,10 @@ const deletePostAdmin = async (req, res) => {
 
         // Emit socket events
         if (req.io) {
-            // Notify user about rejection
-            req.io.to(userId.toString()).emit('post_rejected', { postId: req.params.id });
+            // Broadcast to all users to remove from their feed (if cached)
+            req.io.emit('post_rejected', { postId: req.params.id });
 
-            // Send notification
+            // Send notification to post owner
             req.io.to(userId.toString()).emit('new notification', notification);
         }
 

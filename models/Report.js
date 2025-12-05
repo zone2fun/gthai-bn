@@ -21,7 +21,7 @@ const reportSchema = mongoose.Schema({
     },
     reason: {
         type: String,
-        enum: ['สแปม', 'เนื้อหาไม่เหมาะสม', 'การคุกคาม', 'การแอบอ้าง', 'การหลอกลวง', 'โปรไฟล์ปลอม', 'การละเมิดกฎ', 'การหลอกลวง/ฉ้อโกง'],
+        enum: ['Spam', 'Harassment', 'Inappropriate Content', 'False Information', 'Impersonation', 'Scam/Fraud', 'Fake Profile', 'Rule Violation', 'Other'],
         required: true
     },
     additionalInfo: {

@@ -7,10 +7,18 @@ const getNotifications = async (req, res) => {
     try {
         const notifications = await Notification.find({ recipient: req.user._id })
             .sort({ createdAt: -1 })
-            .populate('sender', 'name img')
+            .populate('sender', 'name img isBanned')
             .populate('post', 'content image'); // Populate post details if needed
 
-        res.json(notifications);
+        // Filter out notifications from banned users
+        const filteredNotifications = notifications.filter(notif => {
+            // Keep notifications without sender (system notifications)
+            if (!notif.sender) return true;
+            // Filter out banned users
+            return !notif.sender.isBanned;
+        });
+
+        res.json(filteredNotifications);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });

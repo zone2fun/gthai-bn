@@ -103,6 +103,7 @@ const albumAccessRoutes = require('./routes/albumAccess');
 const adminRoutes = require('./routes/admin');
 const photoApprovalRoutes = require('./routes/photoApprovalRoutes');
 const announcementRoutes = require('./routes/announcements');
+const cloudinaryRoutes = require('./routes/cloudinary');
 const { checkMaintenanceMode } = require('./middleware/maintenanceMiddleware');
 
 // Use Routes
@@ -120,6 +121,7 @@ app.use('/api/notifications', checkMaintenanceMode, require('./routes/notificati
 app.use('/api/reports', checkMaintenanceMode, reportRoutes);
 app.use('/api/album-access', checkMaintenanceMode, albumAccessRoutes);
 app.use('/api/announcements', checkMaintenanceMode, announcementRoutes);
+app.use('/api/cloudinary', checkMaintenanceMode, cloudinaryRoutes);
 
 const PORT = process.env.PORT || 5000;
 

@@ -58,13 +58,24 @@ const requestAlbumAccess = async (req, res) => {
             type: 'request_album_access',
             relatedId: request._id,
             relatedModel: 'AlbumAccessRequest',
-            text: 'ACCESS_REQUEST'
+            text: 'I would like to request access to your private album.'
         });
 
         // Emit socket event for new message
+        // Note: We don't populate relatedId to keep it as a string ID for frontend
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'name img')
-            .populate('recipient', 'name img');
+            .populate('recipient', 'name img')
+            .lean(); // Use lean() to get plain object
+
+        // Ensure relatedId is a string, not an object
+        if (populatedMessage.relatedId && typeof populatedMessage.relatedId === 'object') {
+            console.log('Converting relatedId from object to string:', populatedMessage.relatedId);
+            populatedMessage.relatedId = populatedMessage.relatedId.toString();
+        }
+
+        console.log('Final relatedId before emit:', populatedMessage.relatedId);
+        console.log('typeof relatedId:', typeof populatedMessage.relatedId);
 
         req.io.to(ownerId).emit('new message', populatedMessage);
         req.io.to(requesterId.toString()).emit('new message', populatedMessage);
@@ -104,6 +115,11 @@ const getAlbumAccessRequests = async (req, res) => {
 const updateAlbumAccessRequest = async (req, res) => {
     try {
         const { status } = req.body; // 'approved' or 'rejected'
+
+        console.log('updateAlbumAccessRequest called');
+        console.log('req.params.requestId:', req.params.requestId);
+        console.log('typeof req.params.requestId:', typeof req.params.requestId);
+        console.log('req.params:', req.params);
 
         if (!['approved', 'rejected'].includes(status)) {
             return res.status(400).json({ message: 'Invalid status' });
@@ -147,13 +163,22 @@ const updateAlbumAccessRequest = async (req, res) => {
             type: 'album_access_response',
             relatedId: request._id,
             relatedModel: 'AlbumAccessRequest',
-            text: status === 'approved' ? 'ACCESS_APPROVED' : 'ACCESS_REJECTED'
+            text: status === 'approved'
+                ? 'I have approved your request to access my private album.'
+                : 'I have declined your request to access my private album.'
         });
 
         // Emit socket event for new message
+        // Note: We don't populate relatedId to keep it as a string ID for frontend
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'name img')
-            .populate('recipient', 'name img');
+            .populate('recipient', 'name img')
+            .lean(); // Use lean() to get plain object
+
+        // Ensure relatedId is a string, not an object
+        if (populatedMessage.relatedId && typeof populatedMessage.relatedId === 'object') {
+            populatedMessage.relatedId = populatedMessage.relatedId.toString();
+        }
 
         req.io.to(request.requester.toString()).emit('new message', populatedMessage);
         req.io.to(req.user._id.toString()).emit('new message', populatedMessage);

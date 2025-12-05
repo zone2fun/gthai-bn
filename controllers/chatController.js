@@ -28,6 +28,8 @@ const sendMessage = async (req, res) => {
     let imageUrl = null;
     if (req.file) {
         imageUrl = req.file.path; // Cloudinary URL
+    } else if (req.body.image) {
+        imageUrl = req.body.image; // Image URL sent from client
     }
 
     if (!recipientId || (!text && !imageUrl)) {
@@ -62,7 +64,7 @@ const getConversations = async (req, res) => {
     // Find all messages where user is sender or recipient
     const messages = await Message.find({
         $or: [{ sender: myId }, { recipient: myId }]
-    }).sort({ createdAt: -1 }).populate('sender', 'name img isOnline').populate('recipient', 'name img isOnline');
+    }).sort({ createdAt: -1 }).populate('sender', 'name img isOnline isBanned').populate('recipient', 'name img isOnline isBanned');
 
     // Get unread counts
     const unreadMessages = await Message.find({
@@ -84,6 +86,9 @@ const getConversations = async (req, res) => {
         if (!msg.sender || !msg.recipient) return;
 
         const otherUser = msg.sender._id.toString() === myId.toString() ? msg.recipient : msg.sender;
+
+        // Skip if other user is banned
+        if (otherUser.isBanned) return;
 
         if (!seenUsers.has(otherUser._id.toString())) {
             seenUsers.add(otherUser._id.toString());
