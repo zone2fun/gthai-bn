@@ -49,6 +49,31 @@ io.on('connection', (socket) => {
         console.log('User joined room: ' + room);
     });
 
+    socket.on('leave chat', (room) => {
+        socket.leave(room);
+        console.log('User left room: ' + room);
+    });
+
+    socket.on('new message', (newMessageReceived) => {
+        console.log('New message received via socket:', newMessageReceived);
+
+        // Get the recipient ID from the message
+        const senderId = newMessageReceived.sender?._id || newMessageReceived.sender;
+        const recipientId = newMessageReceived.recipient?._id || newMessageReceived.recipient;
+
+        // Emit to recipient's room
+        if (recipientId) {
+            console.log(`Emitting message to recipient room: ${recipientId}`);
+            socket.to(recipientId).emit('message received', newMessageReceived);
+        }
+
+        // Also emit to sender's other devices
+        if (senderId) {
+            console.log(`Emitting message to sender room: ${senderId}`);
+            socket.to(senderId).emit('message received', newMessageReceived);
+        }
+    });
+
     socket.on('typing', (room) => {
         socket.to(room).emit('typing');
     });
