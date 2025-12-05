@@ -21,7 +21,23 @@ const reportSchema = mongoose.Schema({
     },
     reason: {
         type: String,
-        enum: ['Spam', 'Harassment', 'Inappropriate Content', 'False Information', 'Impersonation', 'Scam/Fraud', 'Fake Profile', 'Rule Violation', 'Other'],
+        enum: [
+            'Inappropriate content',
+            'Harassment or bullying',
+            'Spam or scam',
+            'Fake profile',
+            'Underage user',
+            'Other',
+            // Keep old values for backward compatibility
+            'Spam',
+            'Harassment',
+            'Inappropriate Content',
+            'False Information',
+            'Impersonation',
+            'Scam/Fraud',
+            'Fake Profile',
+            'Rule Violation'
+        ],
         required: true
     },
     additionalInfo: {

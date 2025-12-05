@@ -4,6 +4,9 @@ const Notification = require('../models/Notification');
 
 const createReport = async (req, res) => {
     try {
+        console.log('=== CREATE REPORT REQUEST ===');
+        console.log('Request body:', req.body);
+        console.log('User ID:', req.user?._id);
         const { postId, userId, reason, additionalInfo, reportType } = req.body;
 
         if (!reportType || !['post', 'user'].includes(reportType)) {
