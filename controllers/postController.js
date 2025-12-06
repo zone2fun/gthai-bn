@@ -164,11 +164,16 @@ const getPostById = async (req, res) => {
 // @access  Private
 const createPost = async (req, res) => {
     try {
-        const { content } = req.body;
+        const { content, image } = req.body;
         let imageUrl = null;
 
+        // Check if file was uploaded via multer
         if (req.file) {
             imageUrl = req.file.path;
+        }
+        // Or if image URL was provided in body (already uploaded to Cloudinary)
+        else if (image) {
+            imageUrl = image;
         }
 
         if (!content && !imageUrl) {

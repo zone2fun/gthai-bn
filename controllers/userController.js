@@ -199,6 +199,11 @@ const blockUser = async (req, res) => {
             await user.save();
         }
 
+        // Emit socket event to the blocked user
+        if (req.io) {
+            req.io.to(targetUserId).emit('blocked', { byUser: req.user._id });
+        }
+
         res.json({ message: 'User blocked' });
     } catch (error) {
         console.error(error);
@@ -217,6 +222,11 @@ const unblockUser = async (req, res) => {
         if (user.blockedUsers.includes(targetUserId)) {
             user.blockedUsers = user.blockedUsers.filter(id => id.toString() !== targetUserId);
             await user.save();
+        }
+
+        // Emit socket event to the unblocked user
+        if (req.io) {
+            req.io.to(targetUserId).emit('unblocked', { byUser: req.user._id });
         }
 
         res.json({ message: 'User unblocked' });
