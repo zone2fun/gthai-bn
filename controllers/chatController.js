@@ -67,9 +67,126 @@ const sendMessage = async (req, res) => {
 };
 
 // @desc    Get all conversations for current user
-// ... (rest of getConversations, no change) ...
+// @route   GET /api/chat
+// @access  Private
+const getConversations = async (req, res) => {
+    const myId = req.user._id;
 
-// ... (markAsRead, deleteMessage, no change) ...
+    // Find all messages where user is sender or recipient
+    const messages = await Message.find({
+        $or: [{ sender: myId }, { recipient: myId }]
+    }).sort({ createdAt: -1 }).populate('sender', 'name img isOnline isBanned').populate('recipient', 'name img isOnline isBanned');
+
+    // Get unread counts
+    const unreadMessages = await Message.find({
+        recipient: myId,
+        read: false
+    });
+
+    const unreadCounts = {};
+    unreadMessages.forEach(msg => {
+        const senderId = msg.sender.toString();
+        unreadCounts[senderId] = (unreadCounts[senderId] || 0) + 1;
+    });
+
+    const conversations = [];
+    const seenUsers = new Set();
+
+    messages.forEach(msg => {
+        // Skip if message doesn't have sender or recipient populated
+        if (!msg.sender || !msg.recipient) return;
+
+        const otherUser = msg.sender._id.toString() === myId.toString() ? msg.recipient : msg.sender;
+
+        // Skip if other user is banned
+        if (otherUser.isBanned) return;
+
+        if (!seenUsers.has(otherUser._id.toString())) {
+            seenUsers.add(otherUser._id.toString());
+            conversations.push({
+                user: otherUser,
+                lastMessage: {
+                    _id: msg._id,
+                    sender: msg.sender,
+                    recipient: msg.recipient,
+                    text: msg.text || '',
+                    image: msg.image || null,
+                    createdAt: msg.createdAt,
+                    read: msg.read
+                },
+                unreadCount: unreadCounts[otherUser._id.toString()] || 0
+            });
+        }
+    });
+
+    res.json(conversations);
+};
+
+// @desc    Mark messages as read
+// @route   PUT /api/chat/read
+// @access  Private
+const markAsRead = async (req, res) => {
+    try {
+        const { senderId } = req.body;
+        const myId = req.user._id;
+
+        await Message.updateMany(
+            { sender: senderId, recipient: myId, read: false },
+            { $set: { read: true } }
+        );
+
+        res.json({ message: 'Messages marked as read' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Delete a message
+// @route   DELETE /api/chat/:messageId
+// @access  Private
+const deleteMessage = async (req, res) => {
+    try {
+        const { messageId } = req.params;
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+            return res.status(404).json({ message: 'Message not found' });
+        }
+
+        // Check if user is the sender
+        if (message.sender.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'Not authorized to delete this message' });
+        }
+
+        // Delete image from Cloudinary if exists
+        if (message.image) {
+            try {
+                const { cloudinary } = require('../config/cloudinary');
+                // Extract public_id from Cloudinary URL
+                // URL format: https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{public_id}.{format}
+                const urlParts = message.image.split('/');
+                const fileWithExt = urlParts[urlParts.length - 1];
+                const publicId = `gthai-mobile/${fileWithExt.split('.')[0]}`;
+
+                await cloudinary.uploader.destroy(publicId);
+            } catch (cloudinaryError) {
+                console.error('Error deleting image from Cloudinary:', cloudinaryError);
+                // Continue with message deletion even if Cloudinary deletion fails
+            }
+        }
+
+        await Message.deleteOne({ _id: messageId });
+
+        // Emit socket event to notify recipient
+        req.io.to(message.recipient.toString()).emit('message deleted', { messageId });
+
+        res.json({ message: 'Message deleted' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
 
 module.exports = {
     getMessages,

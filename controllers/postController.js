@@ -4,9 +4,206 @@ const { cloudinary } = require('../config/cloudinary');
 const { sendPushNotification } = require('../utils/pushNotification');
 
 // @desc    Get all posts
-// ... (rest of getPosts, no change) ...
+// @route   GET /api/posts
+// @access  Private
+const getPosts = async (req, res) => {
+    try {
+        const { hashtag, unapproved } = req.query;
+        let query = {};
 
-// ... (getPostById, createPost, no change) ...
+        // Get current user and their blocked relationships
+        const currentUser = await User.findById(req.user._id);
+
+        // Check if requesting unapproved posts (admin only)
+        if (unapproved === 'true') {
+            // Return all posts without filtering by approval status
+            const posts = await Post.find({})
+                .sort({ createdAt: -1 })
+                .populate('user', 'name img isOnline isVerified')
+                .populate('likes', 'name img isVerified')
+                .populate('comments.user', 'name img isVerified');
+            return res.json(posts);
+        }
+
+        // Find users who have blocked the current user
+        const usersWhoBlockedMe = await User.find({
+            blockedUsers: currentUser._id
+        }).select('_id');
+
+        const blockedMeIds = usersWhoBlockedMe.map(u => u._id);
+
+        // Find banned users
+        const bannedUsers = await User.find({ isBanned: true }).select('_id');
+        const bannedUserIds = bannedUsers.map(u => u._id);
+
+        // Combine all excluded user IDs (users I blocked + users who blocked me + banned users)
+        // Convert all to string for easier comparison later
+        const allExcludedUserIds = [
+            ...currentUser.blockedUsers.map(id => id.toString()),
+            ...blockedMeIds.map(id => id.toString()),
+            ...bannedUserIds.map(id => id.toString())
+        ];
+
+        // Base conditions: exclude blocked/banned users AND unapproved posts
+        const baseConditions = {
+            user: { $nin: allExcludedUserIds },
+            isApproved: true  // Only show approved posts in regular feed
+        };
+
+        if (hashtag) {
+            const tags = hashtag.split(',').map(tag => tag.trim()).filter(tag => tag);
+            if (tags.length > 0) {
+                const regexConditions = tags.map(tag => ({ content: { $regex: tag, $options: 'i' } }));
+                query = {
+                    $and: [
+                        { $or: regexConditions }, // Hashtag filter
+                        baseConditions // Apply base conditions
+                    ]
+                };
+            }
+        } else {
+            // No hashtag filter, just apply base conditions
+            query = baseConditions;
+        }
+
+        const posts = await Post.find(query)
+            .sort({ createdAt: -1 })
+            .populate('user', 'name img isOnline isVerified')
+            .populate('likes', 'name img isBanned isVerified')
+            .populate('comments.user', 'name img isBanned isVerified');
+
+        // Filter out comments and likes from excluded users (blocked/banned)
+        const filteredPosts = posts.map(post => {
+            // Convert to object to avoid modifying the actual document if we were to save it (though we aren't)
+            // and to allow easier manipulation
+            const postObj = post.toObject();
+
+            if (postObj.comments) {
+                postObj.comments = postObj.comments.filter(comment => {
+                    // Check if comment user exists (might be deleted)
+                    if (!comment.user) return false;
+
+                    // Check if user is banned
+                    if (comment.user.isBanned) return false;
+
+                    // Check if user is in excluded list (blocked/banned)
+                    if (allExcludedUserIds.includes(comment.user._id.toString())) return false;
+
+                    return true;
+                });
+            }
+
+            // Filter out likes from excluded users (blocked/banned)
+            if (postObj.likes) {
+                postObj.likes = postObj.likes.filter(like => {
+                    // Check if like user exists
+                    if (!like) return false;
+
+                    // Check if user is banned
+                    if (like.isBanned) return false;
+
+                    // Check if user is in excluded list
+                    if (allExcludedUserIds.includes(like._id.toString())) return false;
+
+                    return true;
+                });
+            }
+
+            return postObj;
+        });
+
+        res.json(filteredPosts);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Get single post by ID
+// @route   GET /api/posts/:id
+// @access  Private
+const getPostById = async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id)
+            .populate('user', 'name img isOnline isBanned isVerified')
+            .populate('likes', 'name img isBanned isVerified')
+            .populate('comments.user', 'name img isBanned isVerified');
+
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+
+        // Check if post author is banned
+        if (post.user && post.user.isBanned) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+
+        // Filter comments from banned users
+        const postObj = post.toObject();
+        if (postObj.comments) {
+            postObj.comments = postObj.comments.filter(comment =>
+                comment.user && !comment.user.isBanned
+            );
+        }
+
+        // Filter likes from banned users
+        if (postObj.likes) {
+            postObj.likes = postObj.likes.filter(like =>
+                like && !like.isBanned
+            );
+        }
+
+        res.json(postObj);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Create a post
+// @route   POST /api/posts
+// @access  Private
+const createPost = async (req, res) => {
+    try {
+        const { content, image } = req.body;
+        let imageUrl = null;
+
+        // Check if file was uploaded via multer
+        if (req.file) {
+            imageUrl = req.file.path;
+        }
+        // Or if image URL was provided in body (already uploaded to Cloudinary)
+        else if (image) {
+            imageUrl = image;
+        }
+
+        if (!content && !imageUrl) {
+            return res.status(400).json({ message: 'Post must have content or image' });
+        }
+
+        // Posts with images need admin approval
+        const isApproved = imageUrl ? false : true;
+
+        const newPost = await Post.create({
+            user: req.user._id,
+            content,
+            image: imageUrl,
+            isApproved: isApproved
+        });
+
+        const fullPost = await Post.findById(newPost._id).populate('user', 'name img isOnline isVerified');
+
+        // Only emit socket event if post is approved (no image or auto-approved)
+        if (isApproved && req.io) {
+            req.io.emit('new post', fullPost);
+        }
+
+        res.status(201).json(fullPost);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
 
 // @desc    Like a post
 // @route   PUT /api/posts/:id/like
@@ -84,7 +281,55 @@ const likePost = async (req, res) => {
     }
 };
 
-// ... (deletePost, no change) ...
+// @desc    Delete a post
+// @route   DELETE /api/posts/:id
+// @access  Private
+const deletePost = async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+
+        // Check user
+        if (post.user.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: 'User not authorized' });
+        }
+
+        // Delete image from cloudinary
+        if (post.image) {
+            try {
+                const urlParts = post.image.split('/');
+                const fileWithExt = urlParts[urlParts.length - 1];
+                const publicId = `gthai-mobile/${fileWithExt.split('.')[0]}`;
+                await cloudinary.uploader.destroy(publicId);
+            } catch (err) {
+                console.error('Error deleting image from Cloudinary', err);
+            }
+        }
+        // Delete gallery images from cloudinary
+        if (post.gallery && post.gallery.length > 0) {
+            for (const imgUrl of post.gallery) {
+                try {
+                    const urlParts = imgUrl.split('/');
+                    const fileWithExt = urlParts[urlParts.length - 1];
+                    const publicId = `gthai-mobile/${fileWithExt.split('.')[0]}`;
+                    await cloudinary.uploader.destroy(publicId);
+                } catch (err) {
+                    console.error('Error deleting gallery image from Cloudinary', err);
+                }
+            }
+        }
+
+        await post.deleteOne();
+
+        res.json({ message: 'Post removed' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
 
 // @desc    Add a comment to a post
 // @route   POST /api/posts/:id/comment
@@ -154,7 +399,49 @@ const addComment = async (req, res) => {
     }
 };
 
-// ... (deleteComment, no change) ...
+// @desc    Delete a comment from a post
+// @route   DELETE /api/posts/:id/comment/:commentId
+// @access  Private (Post owner only)
+const deleteComment = async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+
+        // Check if user is the post owner
+        if (post.user.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: 'Only post owner can delete comments' });
+        }
+
+        // Find comment index
+        const commentIndex = post.comments.findIndex(
+            comment => comment._id.toString() === req.params.commentId
+        );
+
+        if (commentIndex === -1) {
+            return res.status(404).json({ message: 'Comment not found' });
+        }
+
+        // Remove comment
+        post.comments.splice(commentIndex, 1);
+
+        await post.save();
+
+        const updatedPost = await Post.findById(req.params.id).populate('comments.user', 'name img isBanned isVerified');
+
+        // Filter comments from banned users
+        const comments = updatedPost.comments.filter(comment =>
+            comment.user && !comment.user.isBanned
+        );
+
+        res.json(comments);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
 
 // @desc    Approve a post (Admin only)
 // @route   PUT /api/posts/:id/approve
@@ -210,7 +497,22 @@ const approvePost = async (req, res) => {
     }
 };
 
-// ... (getPendingPosts, no change) ...
+// @desc    Get pending posts (Admin only)
+// @route   GET /api/admin/posts/pending
+// @access  Private/Admin
+const getPendingPosts = async (req, res) => {
+    try {
+        const posts = await Post.find({ isApproved: false, image: { $ne: null } })
+            .sort({ createdAt: -1 })
+            .populate('user', 'name img isOnline isVerified')
+            .populate('likes', 'name img isVerified')
+            .populate('comments.user', 'name img isVerified');
+        res.json(posts);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
 
 // @desc    Delete a post (Admin only)
 // @route   DELETE /api/admin/posts/:id
