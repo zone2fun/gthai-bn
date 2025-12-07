@@ -626,6 +626,8 @@ const updatePushToken = async (req, res) => {
     try {
         const { pushToken } = req.body;
 
+        console.log(`[PushToken] Received update request for user ${req.user._id}: ${pushToken}`);
+
         if (!pushToken) {
             return res.status(400).json({ message: 'Push token is required' });
         }
@@ -635,12 +637,14 @@ const updatePushToken = async (req, res) => {
         if (user) {
             user.pushToken = pushToken;
             await user.save();
+            console.log(`[PushToken] Successfully updated token for user ${req.user._id}`);
             res.json({ message: 'Push token updated' });
         } else {
+            console.log(`[PushToken] User ${req.user._id} not found`);
             res.status(404).json({ message: 'User not found' });
         }
     } catch (error) {
-        console.error(error);
+        console.error('[PushToken] Error updating token:', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };

@@ -7,14 +7,15 @@ const sendPushNotification = async (userId, title, body, data = {}) => {
     try {
         const user = await User.findById(userId);
         if (!user || !user.pushToken) {
-            // console.log('No push token for user', userId);
+            console.log(`[Push] No push token for user ${userId}`);
             return;
         }
 
         const pushToken = user.pushToken;
+        // console.log(`[Push] Sending to user ${userId} with token ${pushToken}`); 
 
         if (!Expo.isExpoPushToken(pushToken)) {
-            console.error(`Push token ${pushToken} is not a valid Expo push token`);
+            console.error(`[Push] Token ${pushToken} is not a valid Expo push token`);
             return;
         }
 
@@ -31,13 +32,13 @@ const sendPushNotification = async (userId, title, body, data = {}) => {
         for (let chunk of chunks) {
             try {
                 let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-                // console.log('Push notification sent:', ticketChunk);
+                console.log('[Push] Notification sent ticket:', ticketChunk);
             } catch (error) {
-                console.error('Error sending push notification chunk:', error);
+                console.error('[Push] Error sending push notification chunk:', error);
             }
         }
     } catch (error) {
-        console.error('Error in sendPushNotification:', error);
+        console.error('[Push] Error in sendPushNotification:', error);
     }
 };
 
