@@ -136,6 +136,10 @@ const userSchema = mongoose.Schema({
     verificationDate: {
         type: Date,
         default: null
+    },
+    pushToken: {
+        type: String,
+        default: null
     }
 }, {
     timestamps: true

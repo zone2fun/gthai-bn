@@ -619,8 +619,31 @@ const submitVerificationRequest = async (req, res) => {
     }
 };
 
+// @desc    Update user push token
+// @route   PUT /api/users/push-token
+// @access  Private
+const updatePushToken = async (req, res) => {
+    try {
+        const { pushToken } = req.body;
 
+        if (!pushToken) {
+            return res.status(400).json({ message: 'Push token is required' });
+        }
 
+        const user = await User.findById(req.user._id);
+
+        if (user) {
+            user.pushToken = pushToken;
+            await user.save();
+            res.json({ message: 'Push token updated' });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
 
 module.exports = {
     getAllUsers,
@@ -633,5 +656,6 @@ module.exports = {
     updateUserProfile,
     changePassword,
     deleteAccount,
-    submitVerificationRequest
+    submitVerificationRequest,
+    updatePushToken
 };
